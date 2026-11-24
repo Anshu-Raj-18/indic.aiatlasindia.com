@@ -44,7 +44,8 @@ from pydantic import BaseModel
 from engine.config import (
     FRONTEND_DIR, SECTION_NAME, PLATE_ID, COLOR_INDIC, CANONICAL_HOST,
     CANDIDATE_NAME, CANDIDATE_BRANCH, CANDIDATE_COLLEGE,
-    DEVELOPER_NAME, EXACT_FOOTER_OWNERSHIP_LINE, BLUESKY_HANDLE
+    DEVELOPER_NAME, EXACT_FOOTER_OWNERSHIP_LINE, BLUESKY_HANDLE,
+    REVIEWER_NAME, REVIEWER_ROLE, REVIEWER_ORG
 )
 from engine.database import (
     init_db, get_db_connection, get_all_questions, get_answers_by_status,
@@ -180,8 +181,62 @@ def review_portal_by_token(token: str):
     return render_review_interface(slug=answer["slug"], token=token)
 
 
+def _render_readonly_table_html(comp_table: List[Dict[str, Any]]) -> str:
+    """Render human-readable HTML table for Raw AI Draft with zero horizontal scroll."""
+    if not comp_table or not isinstance(comp_table, list):
+        return "<p style='color: var(--atlas-muted); font-size: 13px; font-style: italic; margin: 4px 0;'>No comparison table drafted.</p>"
+
+    known_order = ["provider", "price_inr", "price", "languages", "latency", "data_residency", "onboarding"]
+    all_keys = []
+    for row in comp_table:
+        if isinstance(row, dict):
+            for k in row.keys():
+                if k not in all_keys:
+                    all_keys.append(k)
+    ordered_keys = [k for k in known_order if k in all_keys] + [k for k in all_keys if k not in known_order]
+
+    label_map = {
+        "provider": "Provider",
+        "price_inr": "Price in India (INR)",
+        "price": "Price in India (INR)",
+        "languages": "Supported Languages",
+        "latency": "Observed Latency",
+        "data_residency": "Data Residency",
+        "onboarding": "Setup & Onboarding"
+    }
+
+    th_items = "".join([
+        f"<th style='padding: 8px 10px; background: #0F1B2D; color: #FFFFFF; font-family: var(--atlas-font-mono); font-size: 10.5px; text-transform: uppercase; text-align: left; font-weight: 600; letter-spacing: 0.05em;'>{html.escape(label_map.get(k, k.replace('_', ' ').title()))}</th>"
+        for k in ordered_keys
+    ])
+
+    tr_items = ""
+    for r in comp_table:
+        if not isinstance(r, dict):
+            continue
+        tds = ""
+        for k in ordered_keys:
+            raw_v = str(r.get(k, "") or "")
+            v_escaped = html.escape(raw_v)
+            if "●" in v_escaped:
+                v_escaped = v_escaped.replace("●", "<span style='color: #0F1B2D; font-weight: 700;'>●</span>")
+            if "◌" in v_escaped:
+                v_escaped = v_escaped.replace("◌", "<span style='color: #64748B; font-weight: 700;'>◌</span>")
+            tds += f"<td style='padding: 8px 10px; border-bottom: 1px solid #E2E8F0; font-size: 11.5px; line-height: 1.45; word-break: break-word; vertical-align: top;'>{v_escaped}</td>"
+        tr_items += f"<tr style='background: #FFFFFF;'>{tds}</tr>"
+
+    return f"""
+    <div style="border: 1px solid #CBD5E1; border-radius: 6px; overflow: hidden; background: #FFFFFF; margin-top: 6px;">
+      <table style="width: 100%; border-collapse: collapse; table-layout: auto;">
+        <thead><tr>{th_items}</tr></thead>
+        <tbody>{tr_items}</tbody>
+      </table>
+    </div>
+    """
+
+
 def render_review_interface(slug: Optional[str] = None, token: Optional[str] = None) -> HTMLResponse:
-    """Core review portal rendering logic."""
+    """Core review portal rendering logic with spacious 2-pane workspace, collapsible queue, and structured table editor."""
     answers = get_answers_by_status()
     questions = get_all_questions(limit=50)
 
@@ -212,22 +267,19 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
     answers_nav_html = ""
     for a in answers:
         is_active = (selected_answer and a["slug"] == selected_answer["slug"])
-        active_style = "outline: 2px solid var(--atlas-indic); background: var(--atlas-sea);" if is_active else "background: var(--atlas-paper);"
-        status_color = "var(--atlas-signal)" if a["status"] == "PENDING_REVIEW" else ("var(--atlas-indic)" if a["status"] == "APPROVED" else "var(--atlas-route)")
-        status_text_color = "var(--atlas-ink)" if a["status"] == "PENDING_REVIEW" else "var(--atlas-paper)"
+        active_class = "nav-answer-card nav-answer-card--active" if is_active else "nav-answer-card"
+        status_key = a["status"].lower()
 
         answers_nav_html += f"""
-        <div style="border: var(--atlas-border); margin-bottom: 8px; padding: 12px; {active_style}">
+        <div class="{active_class}">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-family: var(--atlas-font-mono); font-size: 11px; font-weight: 700; background: {status_color}; color: {status_text_color}; padding: 2px 6px;">
-              {a['status']}
-            </span>
-            <span style="font-family: var(--atlas-font-mono); font-size: 11px; color: var(--atlas-muted);">{html.escape(a.get('category', ''))}</span>
+            <span class="status-pill status-pill--{status_key}">{a['status']}</span>
+            <span style="font-family: var(--atlas-font-mono); font-size: 10px; color: var(--atlas-muted); font-weight: 600;">{html.escape(a.get('category', ''))}</span>
           </div>
-          <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">
+          <div style="font-weight: 600; font-size: 13px; line-height: 1.35; margin-bottom: 4px;">
             <a href="/review?slug={a['slug']}" style="color: var(--atlas-ink); text-decoration: none;">{html.escape(a['title'])}</a>
           </div>
-          <div style="font-family: var(--atlas-font-mono); font-size: 11px; color: var(--atlas-muted);">
+          <div style="font-family: var(--atlas-font-mono); font-size: 10px; color: var(--atlas-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             /{a['slug']}
           </div>
         </div>
@@ -237,22 +289,35 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
     edit_summary = display_data.get("summary", "")
     edit_code = display_data.get("runnable_python_code", "")
     edit_breakdown = "\n".join(display_data.get("technical_breakdown", []))
-    edit_table = json.dumps(display_data.get("comparison_table", []), indent=2)
+    edit_table = json.dumps(display_data.get("comparison_table", []), indent=2, ensure_ascii=False)
     edit_sources = "\n".join(display_data.get("sources", []))
 
     # Reviewer fields: DISQUALIFICATION GUARDRAIL: Never default to candidate Anshu Raj
-    cur_rev = selected_answer.get("reviewer_name") if selected_answer else ""
+    cur_rev = (selected_answer.get("reviewer_name") if selected_answer else "") or ""
     if not cur_rev or cur_rev == CANDIDATE_NAME:
         cur_reviewer_name = REVIEWER_NAME
         cur_reviewer_role = REVIEWER_ROLE
         cur_reviewer_org = REVIEWER_ORG
     else:
         cur_reviewer_name = cur_rev
-        cur_reviewer_role = selected_answer.get("reviewer_role") or "Senior Indic AI Specialist"
-        cur_reviewer_org = selected_answer.get("reviewer_org") or "Independent Technical Review Board"
+        cur_reviewer_role = selected_answer.get("reviewer_role") or REVIEWER_ROLE
+        cur_reviewer_org = selected_answer.get("reviewer_org") or REVIEWER_ORG
 
     cur_reviewed_at = (selected_answer.get("reviewed_at") if selected_answer else "") or datetime.now().strftime("%d %B %Y")
     cur_declaration = (selected_answer.get("reviewer_declaration") if selected_answer else "") or "I confirm that I am an independent expert with no financial interest or employment relationship with the commercial AI providers covered in this section."
+
+    is_profile_filled = bool(cur_reviewer_name and cur_reviewer_name.strip() and cur_reviewer_name.strip() != CANDIDATE_NAME)
+    profile_display_style = "none" if is_profile_filled else "block"
+    profile_toggle_text = "Edit Profile ▾" if is_profile_filled else "Collapse Profile ▴"
+    reviewer_display_summary = f"{cur_reviewer_name} — Verified ✓ ({cur_reviewer_role})" if is_profile_filled else "Pending Expert Sign-off (Incomplete)"
+
+    readonly_table_html = _render_readonly_table_html(raw_ai_draft.get("comparison_table", []))
+
+    raw_ai_json_js = json.dumps(raw_ai_draft, ensure_ascii=False)
+    initial_table_js = json.dumps(display_data.get("comparison_table", []), ensure_ascii=False)
+
+    status_color = "var(--atlas-signal)" if (selected_answer and selected_answer["status"] == "PENDING_REVIEW") else ("var(--atlas-indic)" if (selected_answer and selected_answer["status"] == "APPROVED") else "var(--atlas-route)")
+    status_text_color = "var(--atlas-ink)" if (selected_answer and selected_answer["status"] == "PENDING_REVIEW") else "#FFFFFF"
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en" data-section="indic">
@@ -265,234 +330,884 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after {{ box-sizing: border-box; }}
-    body {{
+    html, body {{
       margin: 0;
       padding: 0;
       font-family: var(--atlas-font-body);
       background: var(--atlas-paper);
       color: var(--atlas-ink);
-    }}
-    .review-layout {{
-      display: grid;
-      grid-template-columns: 320px 1fr 1fr;
-      height: calc(100vh - 58px);
+      height: 100vh;
       overflow: hidden;
     }}
-    .col-nav {{
-      border-right: var(--atlas-border);
-      background: var(--atlas-wash);
-      padding: 16px;
-      overflow-y: auto;
+
+    /* Sub-header Bar */
+    .review-subbar {{
+      background: #FFFFFF;
+      border-bottom: 1px solid #CBD5E1;
+      padding: 8px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      height: 48px;
     }}
-    .col-draft {{
-      border-right: var(--atlas-border);
+    .btn-drawer-toggle {{
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-family: var(--atlas-font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: #0F172A;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }}
+    .btn-drawer-toggle:hover {{
+      background: #E2E8F0;
+      color: #000000;
+    }}
+    .btn-subbar-link {{
+      font-family: var(--atlas-font-mono);
+      font-size: 12px;
+      color: var(--atlas-indic);
+      font-weight: 600;
+      text-decoration: underline;
+    }}
+
+    /* Body Layout: Drawer + 50/50 Workspace */
+    .review-body-layout {{
+      display: flex;
+      height: calc(100vh - 106px);
+      overflow: hidden;
+      position: relative;
+    }}
+
+    /* Collapsible Drawer (Left Queue) */
+    .review-drawer {{
+      width: 250px;
+      min-width: 250px;
+      background: #F8FAFC;
+      border-right: 1px solid #CBD5E1;
+      display: flex;
+      flex-direction: column;
+      transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+      overflow: hidden;
+      flex-shrink: 0;
+      z-index: 10;
+    }}
+    .review-drawer.collapsed {{
+      width: 0 !important;
+      min-width: 0 !important;
+      border-right: none !important;
+      opacity: 0;
+      pointer-events: none;
+    }}
+    .drawer-header {{
+      padding: 12px 14px;
+      background: #FFFFFF;
+      border-bottom: 1px solid #E2E8F0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+    .btn-close-drawer {{
+      background: none;
+      border: none;
+      font-size: 14px;
+      cursor: pointer;
+      color: #64748B;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }}
+    .btn-close-drawer:hover {{
+      background: #E2E8F0;
+      color: #0F172A;
+    }}
+    .drawer-content {{
+      padding: 12px;
+      overflow-y: auto;
+      flex: 1;
+    }}
+    .nav-answer-card {{
+      border: 1px solid #E2E8F0;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      padding: 10px;
+      background: #FFFFFF;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }}
+    .nav-answer-card:hover {{
+      border-color: var(--atlas-indic);
+    }}
+    .nav-answer-card--active {{
+      border-color: var(--atlas-indic);
+      background: #FFFBF0;
+      box-shadow: 0 0 0 1px var(--atlas-indic);
+    }}
+
+    /* 50/50 Split Workspace */
+    .review-workspace {{
+      flex: 1 1 0%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      overflow: hidden;
+      height: 100%;
+    }}
+
+    /* Left Pane: Raw AI Draft */
+    .pane-draft {{
+      background: #F8FAFC;
+      border-right: 1px solid #CBD5E1;
       padding: 24px;
       overflow-y: auto;
-      background: var(--atlas-paper);
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
     }}
-    .col-expert {{
-      padding: 24px;
+    .draft-card {{
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 6px;
+      padding: 18px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+    }}
+    .draft-card-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #F1F5F9;
+      padding-bottom: 8px;
+    }}
+    .draft-card-label {{
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #64748B;
+      letter-spacing: 0.08em;
+    }}
+
+    /* Right Pane: Expert Verification */
+    .pane-expert {{
+      background: #FFFFFF;
+      padding: 24px 24px 0 24px;
       overflow-y: auto;
-      background: #fafbfc;
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }}
-    .form-group {{ margin-bottom: 14px; }}
-    .form-group label {{
+    .pane-expert .form-group {{
+      margin-bottom: 24px;
+    }}
+    .pane-expert .form-group-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }}
+    .pane-expert label {{
       display: block;
       font-family: var(--atlas-font-mono);
       font-size: 11px;
       text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 5px;
-      font-weight: 600;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #334155;
     }}
-    .form-control {{
+    .pane-expert .form-control {{
       width: 100%;
-      padding: 8px 12px;
-      border: var(--atlas-border);
-      border-radius: 0;
+      padding: 9px 12px;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
       font-family: var(--atlas-font-body);
-      font-size: 14px;
-      background: #fff;
+      font-size: 13.5px;
+      background: #FFFFFF;
+      color: var(--atlas-ink);
+      line-height: 1.5;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }}
+    .pane-expert .form-control:focus {{
+      outline: none;
+      border-color: var(--atlas-indic);
+      box-shadow: 0 0 0 3px rgba(138, 90, 28, 0.15);
     }}
     .form-control-mono {{
+      font-family: var(--atlas-font-mono) !important;
+      font-size: 12px !important;
+      line-height: 1.5 !important;
+    }}
+
+    /* Policy Pill Badge */
+    .policy-pill {{
+      display: inline-flex;
+      align-items: center;
+      background: #FEF9C3;
+      color: #854D0E;
+      border: 1px solid #FDE047;
+      padding: 3px 8px;
+      font-size: 11px;
       font-family: var(--atlas-font-mono);
-      font-size: 12px;
-      line-height: 1.5;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: help;
+    }}
+    .human-gate-pill {{
+      font-family: var(--atlas-font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--atlas-route);
+      background: #FEE2E2;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #FECACA;
+    }}
+
+    /* Reviewer Profile Accordion Card */
+    .reviewer-profile-card {{
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      padding: 12px 16px;
+      background: #F8FAFC;
+      margin-bottom: 24px;
+    }}
+    .reviewer-summary-bar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }}
+    .btn-accordion-toggle {{
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+      cursor: pointer;
+    }}
+    .btn-accordion-toggle:hover {{
+      background: #F1F5F9;
+      color: #0F172A;
+    }}
+
+    /* Quick Copy & Add Row Buttons */
+    .btn-quick-copy {{
+      background: #F1F5F9;
+      border: 1px solid #CBD5E1;
+      color: #475569;
+      font-family: var(--atlas-font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.15s ease;
+    }}
+    .btn-quick-copy:hover {{
+      background: #E2E8F0;
+      color: #0F172A;
+    }}
+    .btn-add-row {{
+      background: #F8FAFC;
+      color: #0F172A;
+      font-family: var(--atlas-font-mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border: 1px dashed #94A3B8;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      text-align: center;
+      transition: all 0.15s ease;
+    }}
+    .btn-add-row:hover {{
+      background: #F1F5F9;
+      border-color: #64748B;
+    }}
+
+    /* Sticky Action Bar */
+    .sticky-action-bar {{
+      position: sticky;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-top: 1px solid #CBD5E1;
+      padding: 16px 24px;
+      margin: 32px -24px 0 -24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 100;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
     }}
     .btn {{
-      padding: 10px 18px;
-      font-weight: 600;
-      font-size: 14px;
-      border: var(--atlas-border);
-      border-radius: 0;
+      padding: 10px 22px;
+      font-weight: 700;
+      font-size: 13.5px;
+      border-radius: 6px;
       cursor: pointer;
       font-family: var(--atlas-font-mono);
       text-transform: uppercase;
+      border: 1.5px solid var(--atlas-ink);
+      transition: all 0.15s ease;
     }}
-    .btn-approve {{ background: var(--atlas-signal); color: var(--atlas-ink); }}
-    .btn-approve:hover {{ background: #e2b322; }}
-    .btn-reject {{ background: var(--atlas-paper); color: var(--atlas-route); border-color: var(--atlas-route); }}
-    .guardrail-notice {{
-      background: var(--atlas-wash);
-      border-left: 3px solid var(--atlas-indic);
-      padding: 10px 14px;
-      font-size: 12px;
-      margin-bottom: 16px;
+    .btn-approve {{
+      background: var(--atlas-signal);
+      color: var(--atlas-ink);
+    }}
+    .btn-approve:hover {{
+      background: #E2B322;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }}
+    .btn-reject {{
+      background: #FFFFFF;
+      color: var(--atlas-route);
+      border-color: var(--atlas-route);
+    }}
+    .btn-reject:hover {{
+      background: #FEE2E2;
+    }}
+
+    /* Status Pills */
+    .status-pill {{
+      font-family: var(--atlas-font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: inline-block;
+    }}
+    .status-pill--pending_review, .status-pill--pending {{
+      background: var(--atlas-signal);
+      color: var(--atlas-ink);
+    }}
+    .status-pill--approved {{
+      background: var(--atlas-indic);
+      color: #FFFFFF;
+    }}
+    .status-pill--rejected {{
+      background: var(--atlas-route);
+      color: #FFFFFF;
+    }}
+
+    @media (max-width: 992px) {{
+      .review-workspace {{
+        grid-template-columns: 1fr;
+      }}
+      .review-body-layout {{
+        height: auto;
+        overflow: visible;
+      }}
+      .pane-draft, .pane-expert {{
+        overflow: visible;
+      }}
     }}
   </style>
 </head>
 <body>
   {render_admin_nav(active_tab="review")}
 
-  <div class="review-layout">
-    <!-- Column 1: Navigation List -->
-    <div class="col-nav">
-      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px;">
-        <span style="font-family: var(--atlas-font-mono); font-size: 12px; font-weight: 700; text-transform: uppercase;">
-          Candidate Q&As ({len(answers)})
+  <div class="review-page-wrapper">
+    <!-- Sub-header Bar -->
+    <div class="review-subbar">
+      <div style="display: flex; align-items: center; gap: 12px; min-width: 0;">
+        <button type="button" id="sidebarToggleBtn" class="btn-drawer-toggle" onclick="toggleSidebar()" title="Toggle Candidate Queue">
+          <span id="drawerIcon">☰</span>
+          <span style="font-weight: 600;">Queue ({len(answers)})</span>
+        </button>
+        <div style="height: 18px; width: 1px; background: #CBD5E1;"></div>
+        <span class="atlas-badge atlas-badge--indic" style="font-size: 10px; padding: 2px 7px; flex-shrink: 0;">
+          {html.escape(selected_answer.get('category', 'Speech & Voice')) if selected_answer else 'General'}
+        </span>
+        <span style="font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+          {html.escape(selected_answer['title'] if selected_answer else 'Select an answer')}
         </span>
       </div>
-      {answers_nav_html}
-
-      <div style="margin-top: 24px; padding-top: 16px; border-top: var(--atlas-border);">
-        <span style="font-family: var(--atlas-font-mono); font-size: 11px; text-transform: uppercase; color: var(--atlas-muted); font-weight: 700;">
-          Discovered Queries ({len(questions)})
+      <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+        <span class="status-pill status-pill--{selected_answer['status'].lower() if selected_answer else 'pending'}">
+          {selected_answer['status'] if selected_answer else ''}
         </span>
-        <div style="max-height: 180px; overflow-y: auto; font-size: 12px; margin-top: 8px;">
-          {''.join([f'<div style="padding: 4px 0; border-bottom: 1px solid #e1e4e8;"><span style="color: #666;">[{html.escape(q["source"])}]</span> {html.escape(q["clean_question"][:60])}...</div>' for q in questions[:10]])}
-        </div>
+        {f'<a href="/answers/{selected_answer["slug"]}.html" target="_blank" class="btn-subbar-link">Preview Published ↗</a>' if selected_answer else ''}
       </div>
     </div>
 
-    <!-- Column 2: Raw AI Draft View -->
-    <div class="col-draft">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: var(--atlas-border); padding-bottom: 8px;">
-        <span style="font-family: var(--atlas-font-mono); font-size: 12px; font-weight: 700; color: var(--atlas-muted);">
-          1. RAW AI DRAFT (GEMINI 2.5 FLASH)
-        </span>
-        <span style="font-family: var(--atlas-font-mono); font-size: 11px; background: var(--atlas-wash); padding: 2px 6px; border: 1px solid #ddd;">
-          UNTOUCHED AUDIT COPY
-        </span>
-      </div>
+    <!-- Main Workspace with Collapsible Drawer and 50/50 Split -->
+    <div class="review-body-layout" id="reviewBodyLayout">
+      <!-- Collapsible Drawer (Candidate Q&As) -->
+      <aside class="review-drawer" id="reviewDrawer">
+        <div class="drawer-header">
+          <span style="font-family: var(--atlas-font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase;">
+            Candidate Q&As ({len(answers)})
+          </span>
+          <button type="button" class="btn-close-drawer" onclick="toggleSidebar()" title="Collapse Queue">✕</button>
+        </div>
+        <div class="drawer-content">
+          {answers_nav_html}
 
-      <h2 style="font-family: var(--atlas-font-display); font-size: 20px; margin-top: 0;">
-        {html.escape(raw_ai_draft.get("question", selected_answer["title"] if selected_answer else "Select an answer"))}
-      </h2>
-
-      <p style="font-size: 14px; line-height: 1.6; color: var(--atlas-muted);">
-        {html.escape(raw_ai_draft.get("summary", ""))}
-      </p>
-
-      <h4 style="font-family: var(--atlas-font-mono); font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
-        AI Comparison Matrix Draft:
-      </h4>
-      <div style="background: var(--atlas-wash); padding: 10px; border: 1px solid var(--atlas-rule); font-family: var(--atlas-font-mono); font-size: 11px; max-height: 140px; overflow-y: auto;">
-        <pre style="margin: 0;">{html.escape(json.dumps(raw_ai_draft.get("comparison_table", []), indent=2))}</pre>
-      </div>
-
-      <h4 style="font-family: var(--atlas-font-mono); font-size: 11px; text-transform: uppercase; margin-top: 14px; margin-bottom: 6px;">
-        AI Runnable Code Draft:
-      </h4>
-      <div style="background: var(--atlas-ink); color: #fff; padding: 10px; font-family: var(--atlas-font-mono); font-size: 11px; max-height: 140px; overflow-y: auto;">
-        <pre style="margin: 0;">{html.escape(raw_ai_draft.get("runnable_python_code", ""))}</pre>
-      </div>
-
-      <h4 style="font-family: var(--atlas-font-mono); font-size: 11px; text-transform: uppercase; margin-top: 14px; margin-bottom: 6px;">
-        Claim Sourcing URLs:
-      </h4>
-      <ul style="font-family: var(--atlas-font-mono); font-size: 11px; padding-left: 20px;">
-        {''.join([f'<li><a href="{html.escape(s)}" target="_blank" rel="noopener">{html.escape(s)}</a></li>' for s in raw_ai_draft.get("sources", [])])}
-      </ul>
-    </div>
-
-    <!-- Column 3: Expert Edit & Sign-off Form -->
-    <div class="col-expert">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: var(--atlas-border); padding-bottom: 8px;">
-        <span style="font-family: var(--atlas-font-mono); font-size: 12px; font-weight: 700; color: var(--atlas-indic);">
-          2. EXPERT VERIFICATION & SIGN-OFF
-        </span>
-        <span style="font-family: var(--atlas-font-mono); font-size: 11px; font-weight: 600; color: var(--atlas-route);">
-          HUMAN GATE MANDATORY
-        </span>
-      </div>
-
-      <div class="guardrail-notice">
-        <strong>Editorial Policy Compliance:</strong> Candidate {CANDIDATE_NAME} ({CANDIDATE_BRANCH}) is the technical builder. The reviewer below must be an independent domain expert. Self-review is strictly forbidden.
-      </div>
-
-      <form id="expertForm" onsubmit="handleApprove(event)">
-        <input type="hidden" id="answerSlug" value="{selected_answer['slug'] if selected_answer else ''}">
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div class="form-group">
-            <label>Real Reviewer Name</label>
-            <input type="text" class="form-control" id="reviewerName" value="{html.escape(cur_reviewer_name)}" required>
-          </div>
-          <div class="form-group">
-            <label>Verified Professional Role</label>
-            <input type="text" class="form-control" id="reviewerRole" value="{html.escape(cur_reviewer_role)}" required>
+          <div style="margin-top: 20px; padding-top: 14px; border-top: 1px solid #CBD5E1;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-family: var(--atlas-font-mono); font-size: 10px; text-transform: uppercase; color: #475569; font-weight: 700;">
+                Discovered Queries ({len(questions)})
+              </span>
+            </div>
+            <div style="max-height: 220px; overflow-y: auto; font-size: 11px;">
+              {''.join([f'<div style="padding: 5px 0; border-bottom: 1px solid #E2E8F0; line-height: 1.35;"><span style="color: #64748B; font-weight: 600;">[{html.escape(q["source"])}]</span> {html.escape(q["clean_question"][:55])}...</div>' for q in questions[:15]])}
+            </div>
           </div>
         </div>
+      </aside>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-          <div class="form-group">
-            <label>Organization / Consultancy</label>
-            <input type="text" class="form-control" id="reviewerOrg" value="{html.escape(cur_reviewer_org)}" required>
+      <!-- 50/50 Split Workspace -->
+      <main class="review-workspace" id="reviewWorkspace">
+        <!-- Left Pane: 1. RAW AI DRAFT -->
+        <section class="pane-draft" id="paneDraft">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #E2E8F0; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-family: var(--atlas-font-mono); font-size: 13px; font-weight: 700; color: #475569;">
+                1. RAW AI DRAFT (GEMINI 2.5 FLASH)
+              </span>
+              <span style="font-family: var(--atlas-font-mono); font-size: 10px; font-weight: 600; background: #E2E8F0; color: #475569; padding: 2px 6px; border-radius: 4px;">
+                UNTOUCHED AUDIT COPY
+              </span>
+            </div>
+            <span style="font-family: var(--atlas-font-mono); font-size: 11px; color: #64748B;">Read-Only Baseline</span>
           </div>
-          <div class="form-group">
-            <label>Review Date</label>
-            <input type="text" class="form-control" id="reviewedAt" value="{html.escape(cur_reviewed_at)}" required>
+
+          <!-- Question & Summary Card -->
+          <div class="draft-card">
+            <div class="draft-card-header">
+              <span class="draft-card-label">Draft Question & Answer Guidance</span>
+            </div>
+            <h2 style="font-family: var(--atlas-font-display); font-size: 18px; line-height: 1.35; margin: 0 0 10px 0; color: #0F172A;">
+              {html.escape(raw_ai_draft.get("question", selected_answer["title"] if selected_answer else "Select an answer"))}
+            </h2>
+            <p style="font-size: 13.5px; line-height: 1.6; color: #334155; margin: 0;">
+              {html.escape(raw_ai_draft.get("summary", ""))}
+            </p>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label>Independence Confirmation Declaration</label>
-          <input type="text" class="form-control" id="reviewerDeclaration" value="{html.escape(cur_declaration)}" required>
-        </div>
+          <!-- Comparison Table Card -->
+          <div class="draft-card">
+            <div class="draft-card-header">
+              <span class="draft-card-label">AI Comparison Matrix Draft</span>
+              <span style="font-size: 11px; color: #64748B; font-family: var(--atlas-font-mono);">{len(raw_ai_draft.get("comparison_table", []))} Providers</span>
+            </div>
+            {readonly_table_html}
+          </div>
 
-        <div class="form-group">
-          <label>Approved Question Title</label>
-          <input type="text" class="form-control" id="editTitle" value="{html.escape(edit_title)}" required>
-        </div>
+          <!-- Code Card -->
+          <div class="draft-card">
+            <div class="draft-card-header">
+              <span class="draft-card-label">AI Runnable Python API Code</span>
+              <button type="button" class="btn-quick-copy" onclick="copyToClipboard(RAW_AI.runnable_python_code || '', this)">Copy Code</button>
+            </div>
+            <pre style="background: #0F172A; color: #F8FAFC; padding: 14px; border-radius: 6px; font-family: var(--atlas-font-mono); font-size: 12px; line-height: 1.5; overflow-x: auto; margin: 0; max-height: 220px;">{html.escape(raw_ai_draft.get("runnable_python_code", ""))}</pre>
+          </div>
 
-        <div class="form-group">
-          <label>Expert Summary & Decision Guidance</label>
-          <textarea class="form-control" id="editSummary" rows="3" required>{html.escape(edit_summary)}</textarea>
-        </div>
+          <!-- Technical Breakdown Card -->
+          <div class="draft-card">
+            <div class="draft-card-header">
+              <span class="draft-card-label">Technical Breakdown & Trade-Offs</span>
+            </div>
+            <ul style="font-size: 13px; line-height: 1.6; color: #334155; padding-left: 20px; margin: 0;">
+              {''.join([f'<li style="margin-bottom: 6px;">{html.escape(pt)}</li>' for pt in raw_ai_draft.get("technical_breakdown", [])])}
+            </ul>
+          </div>
 
-        <div class="form-group">
-          <label>Comparison Table (JSON Array)</label>
-          <textarea class="form-control form-control-mono" id="editTable" rows="4" required>{html.escape(edit_table)}</textarea>
-        </div>
+          <!-- Sourced URLs Card -->
+          <div class="draft-card">
+            <div class="draft-card-header">
+              <span class="draft-card-label">Authoritative Claim Sourcing URLs</span>
+            </div>
+            <ul style="font-family: var(--atlas-font-mono); font-size: 11.5px; line-height: 1.6; padding-left: 20px; margin: 0;">
+              {''.join([f'<li style="margin-bottom: 4px;"><a href="{html.escape(s)}" target="_blank" rel="noopener" style="color: var(--atlas-indic); text-decoration: underline; word-break: break-all;">{html.escape(s)}</a></li>' for s in raw_ai_draft.get("sources", [])])}
+            </ul>
+          </div>
+        </section>
 
-        <div class="form-group">
-          <label>Working Python API Code</label>
-          <textarea class="form-control form-control-mono" id="editCode" rows="5" required>{html.escape(edit_code)}</textarea>
-        </div>
+        <!-- Right Pane: 2. EXPERT VERIFICATION & SIGN-OFF -->
+        <section class="pane-expert" id="paneExpert">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #CBD5E1; padding-bottom: 12px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <span style="font-family: var(--atlas-font-mono); font-size: 13px; font-weight: 700; color: var(--atlas-indic);">
+                2. EXPERT VERIFICATION & SIGN-OFF
+              </span>
+              <span class="policy-pill" title="Candidate author {CANDIDATE_NAME} cannot review their own section. Must be independently signed by verified domain expert.">
+                Policy Check: Independent Reviewer Required ⓘ
+              </span>
+            </div>
+            <span class="human-gate-pill">HUMAN GATE MANDATORY</span>
+          </div>
 
-        <div class="form-group">
-          <label>Technical Trade-Offs (One per line)</label>
-          <textarea class="form-control" id="editBreakdown" rows="2" required>{html.escape(edit_breakdown)}</textarea>
-        </div>
+          <form id="expertForm" onsubmit="handleApprove(event)">
+            <input type="hidden" id="answerSlug" value="{selected_answer['slug'] if selected_answer else ''}">
 
-        <div class="form-group">
-          <label>Verified Sourced URLs (One per line)</label>
-          <textarea class="form-control form-control-mono" id="editSources" rows="2" required>{html.escape(edit_sources)}</textarea>
-        </div>
+            <!-- Collapsible Reviewer Profile Accordion Card -->
+            <div class="reviewer-profile-card">
+              <div class="reviewer-summary-bar" onclick="toggleReviewerProfile()">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                  <span style="font-family: var(--atlas-font-mono); font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase;">Reviewer Profile:</span>
+                  <span id="reviewerSummaryDisplay" style="font-size: 13px; font-weight: 600; color: #0F172A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {reviewer_display_summary}
+                  </span>
+                </div>
+                <button type="button" class="btn-accordion-toggle" id="reviewerAccordionBtn">
+                  {profile_toggle_text}
+                </button>
+              </div>
 
-        <div style="display: flex; gap: 12px; margin-top: 16px;">
-          <button type="submit" class="btn btn-approve" style="flex: 2;">
-            Approve & Publish with Expert Byline
-          </button>
-          <button type="button" class="btn btn-reject" onclick="handleReject()" style="flex: 1;">
-            Reject Draft
-          </button>
-        </div>
-      </form>
+              <div id="reviewerFieldsBody" style="display: {profile_display_style}; padding-top: 14px; margin-top: 10px; border-top: 1px solid #E2E8F0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label>Real Reviewer Name</label>
+                    <input type="text" class="form-control" id="reviewerName" value="{html.escape(cur_reviewer_name)}" oninput="updateReviewerSummary()" required>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label>Verified Professional Role</label>
+                    <input type="text" class="form-control" id="reviewerRole" value="{html.escape(cur_reviewer_role)}" oninput="updateReviewerSummary()" required>
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label>Organization / Consultancy</label>
+                    <input type="text" class="form-control" id="reviewerOrg" value="{html.escape(cur_reviewer_org)}" required>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label>Review Date</label>
+                    <input type="text" class="form-control" id="reviewedAt" value="{html.escape(cur_reviewed_at)}" required>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label>Independence Confirmation Declaration</label>
+                  <input type="text" class="form-control" id="reviewerDeclaration" value="{html.escape(cur_declaration)}" required>
+                </div>
+              </div>
+            </div>
+
+            <!-- Approved Question Title -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Approved Question Title</label>
+                <button type="button" class="btn-quick-copy" onclick="copyField('question', 'editTitle')">Copy from AI</button>
+              </div>
+              <input type="text" class="form-control" id="editTitle" value="{html.escape(edit_title)}" required>
+            </div>
+
+            <!-- Expert Summary & Decision Guidance -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Expert Summary & Decision Guidance</label>
+                <button type="button" class="btn-quick-copy" onclick="copyField('summary', 'editSummary')">Copy from AI</button>
+              </div>
+              <textarea class="form-control" id="editSummary" rows="3" required>{html.escape(edit_summary)}</textarea>
+            </div>
+
+            <!-- Structured Comparison Table -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Comparison Table</label>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button type="button" class="btn-quick-copy" onclick="resetTableToAI()">Reset to AI Draft</button>
+                  <button type="button" class="btn-quick-copy" id="toggleRawJsonBtn" onclick="toggleRawJson()">Toggle Raw JSON</button>
+                </div>
+              </div>
+
+              <!-- Interactive UI Table Rows -->
+              <div id="interactiveTableRows"></div>
+
+              <div style="margin-top: 8px;">
+                <button type="button" class="btn-add-row" onclick="addTableRow()">+ Add Provider Row</button>
+              </div>
+
+              <!-- Raw JSON Textarea (Hidden by default) -->
+              <div id="rawJsonWrapper" style="display: none; margin-top: 10px;">
+                <div style="font-size: 11px; font-family: var(--atlas-font-mono); color: #64748B; margin-bottom: 4px;">Direct JSON Array Editing (Synced with visual table):</div>
+                <textarea class="form-control form-control-mono" id="editTable" rows="7" required onchange="syncJsonToTable()">{html.escape(edit_table)}</textarea>
+              </div>
+            </div>
+
+            <!-- Working Python API Code -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Working Python API Code</label>
+                <button type="button" class="btn-quick-copy" onclick="copyField('runnable_python_code', 'editCode')">Copy from AI</button>
+              </div>
+              <textarea class="form-control form-control-mono" id="editCode" rows="6" required>{html.escape(edit_code)}</textarea>
+            </div>
+
+            <!-- Technical Trade-Offs -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Technical Trade-Offs (One per line)</label>
+                <button type="button" class="btn-quick-copy" onclick="copyBreakdownFromAI()">Copy from AI</button>
+              </div>
+              <textarea class="form-control" id="editBreakdown" rows="3" required>{html.escape(edit_breakdown)}</textarea>
+            </div>
+
+            <!-- Verified Sourced URLs -->
+            <div class="form-group">
+              <div class="form-group-header">
+                <label>Verified Sourced URLs (One per line)</label>
+                <button type="button" class="btn-quick-copy" onclick="copySourcesFromAI()">Copy from AI</button>
+              </div>
+              <textarea class="form-control form-control-mono" id="editSources" rows="2" required>{html.escape(edit_sources)}</textarea>
+            </div>
+
+            <!-- Sticky Action Footer -->
+            <div class="sticky-action-bar">
+              <button type="submit" class="btn btn-approve" id="approveSubmitBtn">
+                Approve & Publish with Expert Byline
+              </button>
+              <button type="button" class="btn btn-reject" onclick="handleReject()">
+                Reject Draft
+              </button>
+              <span id="saveStatusIndicator" style="font-size: 12px; font-family: var(--atlas-font-mono); color: #64748B; margin-left: auto;"></span>
+            </div>
+          </form>
+        </section>
+      </main>
     </div>
   </div>
 
   <script>
+    const RAW_AI = {raw_ai_json_js};
+    let currentTableData = {initial_table_js};
+    if (!Array.isArray(currentTableData)) currentTableData = [];
+
+    function escapeHtml(str) {{
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }}
+
+    function toggleSidebar() {{
+      const drawer = document.getElementById('reviewDrawer');
+      const icon = document.getElementById('drawerIcon');
+      drawer.classList.toggle('collapsed');
+      const isCollapsed = drawer.classList.contains('collapsed');
+      if (icon) {{
+        icon.innerText = isCollapsed ? '☰' : '✕';
+      }}
+      try {{
+        localStorage.setItem('atlas_review_drawer_collapsed', isCollapsed ? 'true' : 'false');
+      }} catch(e) {{}}
+    }}
+
+    function toggleReviewerProfile() {{
+      const body = document.getElementById('reviewerFieldsBody');
+      const btn = document.getElementById('reviewerAccordionBtn');
+      if (body.style.display === 'none') {{
+        body.style.display = 'block';
+        btn.innerText = 'Collapse Profile ▴';
+      }} else {{
+        body.style.display = 'none';
+        btn.innerText = 'Edit Profile ▾';
+      }}
+    }}
+
+    function updateReviewerSummary() {{
+      const name = document.getElementById('reviewerName').value.trim();
+      const role = document.getElementById('reviewerRole').value.trim();
+      const summaryEl = document.getElementById('reviewerSummaryDisplay');
+      if (name && name.toLowerCase() !== '{CANDIDATE_NAME.lower()}') {{
+        summaryEl.innerHTML = `${{escapeHtml(name)}} — Verified ✓ (${{escapeHtml(role || 'Expert')}})`;
+      }} else {{
+        summaryEl.innerHTML = '<span style="color: var(--atlas-route);">Pending Expert Sign-off (Incomplete)</span>';
+      }}
+    }}
+
+    function renderInteractiveTable() {{
+      const container = document.getElementById('interactiveTableRows');
+      if (!container) return;
+
+      if (!currentTableData || currentTableData.length === 0) {{
+        container.innerHTML = '<div style="padding: 16px; text-align: center; color: #64748B; font-size: 13px; border: 1px dashed #CBD5E1; border-radius: 6px; background: #F8FAFC;">No providers in comparison table. Click "+ Add Provider Row" below or "Reset to AI Draft".</div>';
+        return;
+      }}
+
+      let html = '';
+      currentTableData.forEach((row, idx) => {{
+        const provName = row.provider || ('Provider #' + (idx + 1));
+        html += `
+          <div class="table-row-card" data-index="${{idx}}" style="border: 1px solid #CBD5E1; border-radius: 6px; padding: 14px; margin-bottom: 12px; background: #F8FAFC;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <strong style="font-size: 13px; color: #0F172A;">Row ${{idx + 1}}: <span style="color: var(--atlas-indic);">${{escapeHtml(provName)}}</span></strong>
+              <button type="button" onclick="removeTableRow(${{idx}})" style="background: none; border: 1px solid #FCA5A5; color: #DC2626; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; font-family: var(--atlas-font-mono);">
+                ✕ Remove
+              </button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Provider Name</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.provider || '')}}" oninput="updateTableRow(${{idx}}, 'provider', this.value)" placeholder="e.g. Sarvam AI (Saaras)">
+              </div>
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Price in India (INR / GST)</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.price_inr || row.price || '')}}" oninput="updateTableRow(${{idx}}, 'price_inr', this.value)" placeholder="● ₹0.40 / min · checked [DATE]">
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px;">
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Supported Languages</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.languages || '')}}" oninput="updateTableRow(${{idx}}, 'languages', this.value)" placeholder="● 10 languages + English · checked [DATE]">
+              </div>
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Observed Latency</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.latency || '')}}" oninput="updateTableRow(${{idx}}, 'latency', this.value)" placeholder="● ~500ms streaming or ◌ Not yet sourced">
+              </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Data Residency</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.data_residency || '')}}" oninput="updateTableRow(${{idx}}, 'data_residency', this.value)" placeholder="● AWS Mumbai (India) · checked [DATE]">
+              </div>
+              <div>
+                <label style="display: block; font-size: 10px; font-family: var(--atlas-font-mono); text-transform: uppercase; color: #475569; margin-bottom: 4px; font-weight: 600;">Setup & Onboarding</label>
+                <input type="text" class="form-control" value="${{escapeHtml(row.onboarding || '')}}" oninput="updateTableRow(${{idx}}, 'onboarding', this.value)" placeholder="e.g. Instant self-serve API key">
+              </div>
+            </div>
+          </div>
+        `;
+      }});
+      container.innerHTML = html;
+    }}
+
+    function updateTableRow(rowIdx, key, value) {{
+      if (currentTableData[rowIdx]) {{
+        currentTableData[rowIdx][key] = value;
+        syncTableToJson();
+      }}
+    }}
+
+    function addTableRow() {{
+      currentTableData.push({{
+        provider: "",
+        price_inr: "● ₹... · checked 23 November 2026",
+        languages: "● 10 languages · checked 23 November 2026",
+        latency: "◌ Not yet sourced",
+        data_residency: "● India Cloud · checked 23 November 2026",
+        onboarding: "Self-serve API"
+      }});
+      renderInteractiveTable();
+      syncTableToJson();
+    }}
+
+    function removeTableRow(idx) {{
+      if (confirm("Remove this provider row from comparison table?")) {{
+        currentTableData.splice(idx, 1);
+        renderInteractiveTable();
+        syncTableToJson();
+      }}
+    }}
+
+    function syncTableToJson() {{
+      const jsonEl = document.getElementById('editTable');
+      if (jsonEl) {{
+        jsonEl.value = JSON.stringify(currentTableData, null, 2);
+      }}
+    }}
+
+    function syncJsonToTable() {{
+      const jsonEl = document.getElementById('editTable');
+      if (!jsonEl) return;
+      try {{
+        const parsed = JSON.parse(jsonEl.value);
+        if (Array.isArray(parsed)) {{
+          currentTableData = parsed;
+          renderInteractiveTable();
+        }}
+      }} catch(e) {{
+        console.error('Invalid JSON in textarea:', e);
+      }}
+    }}
+
+    function toggleRawJson() {{
+      const rawBox = document.getElementById('rawJsonWrapper');
+      const btn = document.getElementById('toggleRawJsonBtn');
+      if (rawBox.style.display === 'none') {{
+        rawBox.style.display = 'block';
+        btn.innerText = 'Hide Raw JSON';
+      }} else {{
+        syncJsonToTable();
+        rawBox.style.display = 'none';
+        btn.innerText = 'Toggle Raw JSON';
+      }}
+    }}
+
+    function copyField(rawKey, targetId) {{
+      if (!RAW_AI || RAW_AI[rawKey] === undefined) {{
+        alert('No draft content found for this field.');
+        return;
+      }}
+      const target = document.getElementById(targetId);
+      if (target) {{
+        target.value = RAW_AI[rawKey];
+        flashField(targetId);
+      }}
+    }}
+
+    function resetTableToAI() {{
+      if (!RAW_AI.comparison_table || !Array.isArray(RAW_AI.comparison_table)) {{
+        alert('No comparison table in raw draft.');
+        return;
+      }}
+      if (confirm('Reset comparison table to initial AI draft?')) {{
+        currentTableData = JSON.parse(JSON.stringify(RAW_AI.comparison_table));
+        renderInteractiveTable();
+        syncTableToJson();
+        flashField('interactiveTableRows');
+      }}
+    }}
+
+    function copyBreakdownFromAI() {{
+      if (!RAW_AI.technical_breakdown) return;
+      document.getElementById('editBreakdown').value = RAW_AI.technical_breakdown.join('\\n');
+      flashField('editBreakdown');
+    }}
+
+    function copySourcesFromAI() {{
+      if (!RAW_AI.sources) return;
+      document.getElementById('editSources').value = RAW_AI.sources.join('\\n');
+      flashField('editSources');
+    }}
+
+    function copyToClipboard(text, btn) {{
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {{
+        const orig = btn.innerText;
+        btn.innerText = 'Copied!';
+        setTimeout(() => {{ btn.innerText = orig; }}, 1200);
+      }}).catch(err => {{
+        alert('Failed to copy: ' + err);
+      }});
+    }}
+
+    function flashField(id) {{
+      const el = document.getElementById(id);
+      if (!el) return;
+      const origBg = el.style.backgroundColor;
+      el.style.backgroundColor = '#FEF9C3';
+      setTimeout(() => {{ el.style.backgroundColor = origBg; }}, 350);
+    }}
+
     async function handleApprove(event) {{
       event.preventDefault();
       const slug = document.getElementById('answerSlug').value;
@@ -502,6 +1217,9 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
       if (reviewerName.toLowerCase() === '{CANDIDATE_NAME.lower()}') {{
         return alert('DISQUALIFICATION GUARDRAIL: Candidate author {CANDIDATE_NAME} cannot review their own section. Please enter the name of the independent domain expert.');
       }}
+
+      // Ensure interactive table is serialized to textarea
+      syncTableToJson();
 
       let compTable = [];
       try {{
@@ -545,6 +1263,12 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
         expert_final_json: expertFinalJson
       }};
 
+      const submitBtn = document.getElementById('approveSubmitBtn');
+      const statusInd = document.getElementById('saveStatusIndicator');
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Publishing...';
+      if (statusInd) statusInd.innerText = 'Saving and compiling static site...';
+
       try {{
         const res = await fetch('/api/answers/' + encodeURIComponent(slug) + '/approve', {{
           method: 'POST',
@@ -557,9 +1281,15 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
         }} else {{
           const err = await res.text();
           alert('Error approving draft: ' + err);
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Approve & Publish with Expert Byline';
+          if (statusInd) statusInd.innerText = '';
         }}
       }} catch(err) {{
         alert('Network error: ' + err);
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Approve & Publish with Expert Byline';
+        if (statusInd) statusInd.innerText = '';
       }}
     }}
 
@@ -582,6 +1312,18 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
         alert('Error: ' + e);
       }}
     }}
+
+    document.addEventListener('DOMContentLoaded', () => {{
+      try {{
+        if (localStorage.getItem('atlas_review_drawer_collapsed') === 'true') {{
+          const drawer = document.getElementById('reviewDrawer');
+          if (drawer) drawer.classList.add('collapsed');
+          const icon = document.getElementById('drawerIcon');
+          if (icon) icon.innerText = '☰';
+        }}
+      }} catch(e) {{}}
+      renderInteractiveTable();
+    }});
   </script>
 </body>
 </html>
