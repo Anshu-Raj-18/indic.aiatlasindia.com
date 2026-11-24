@@ -1,0 +1,152 @@
+<!-- AI Atlas India header. Generated from the live site at build time. Use it unchanged. -->
+<!-- Needs tokens.css: <link rel="stylesheet" href="https://aiatlasindia.com/kit/tokens.css"> -->
+<style>
+/* Shared header. Needs tokens.css. Shipped inside /kit/header.html. */
+.atlas-header {
+  font-family: var(--atlas-font-body);
+  color: var(--atlas-ink);
+  background: var(--atlas-paper);
+  border-bottom: 2px solid var(--atlas-ink);
+}
+.atlas-header a { text-decoration: none; }
+.atlas-header__strip {
+  background: var(--atlas-ink);
+  color: var(--atlas-on-ink);
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  --atlas-focus: var(--atlas-signal);
+}
+.atlas-header__strip svg { flex: none; }
+.atlas-header__strip a {
+  color: var(--atlas-paper);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--atlas-route);
+  text-underline-offset: 3px;
+  padding-block: 12px;
+  margin-block: -12px;
+}
+.atlas-header__strip a:hover { color: var(--atlas-signal); }
+.atlas-header__bar {
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 14px var(--atlas-gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-sizing: border-box;
+  position: relative;
+}
+.atlas-header__lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.atlas-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--atlas-ink);
+  min-height: 44px;
+}
+.atlas-header__brand:hover { color: var(--atlas-ink); }
+.atlas-header__brand svg { flex: none; }
+.atlas-header__name {
+  font-family: var(--atlas-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.atlas-header__section {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--atlas-paper);
+}
+.atlas-header__section span {
+  font-family: var(--atlas-font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  background: var(--atlas-section);
+  color: var(--atlas-paper);
+  white-space: nowrap;
+}
+.atlas-header__section:hover { color: var(--atlas-paper); }
+.atlas-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.atlas-header__nav a {
+  color: var(--atlas-ink);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.atlas-header__nav a:hover { color: var(--atlas-route); }
+.atlas-header__nav a.atlas-header__contact {
+  border: 1.5px solid var(--atlas-ink);
+  padding: 0 16px;
+}
+.atlas-header__menu { display: none; }
+.atlas-header__menu summary {
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--atlas-ink);
+  background: var(--atlas-paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  list-style: none;
+}
+.atlas-header__menu summary::-webkit-details-marker { display: none; }
+.atlas-header__menu nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  background: var(--atlas-paper);
+  border-top: 2px solid var(--atlas-ink);
+  border-bottom: 2px solid var(--atlas-ink);
+  display: flex;
+  flex-direction: column;
+  padding: 4px var(--atlas-gutter) 12px;
+}
+.atlas-header__menu nav a {
+  color: var(--atlas-ink);
+  font-size: 17px;
+  font-weight: 500;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--atlas-rule);
+}
+.atlas-header__menu nav a:last-child { border-bottom: 0; }
+
+@media (max-width: 919px) {
+  .atlas-header__nav { display: none; }
+  .atlas-header__menu { display: block; }
+}
+@media (max-width: 767px) {
+  .atlas-header__strip { padding-inline: 16px; }
+}
+@media (max-width: 399px) {
+  .atlas-header__name { font-size: 20px; }
+  .atlas-header__brand { gap: 10px; }
+  .atlas-header__section span { font-size: 11px; padding: 3px 6px; }
+}
+</style>
+<header class="atlas-header"> <div class="atlas-header__strip"> <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M5 0 L10 5 L5 10 L0 5 Z" fill="#F4C430"></path></svg> <span>Owned and run by Vyohm AI Private Limited.</span> <a href="https://aiatlasindia.com/disclosures/">Ownership and disclosures</a> </div> <div class="atlas-header__bar"> <div class="atlas-header__lockup"> <a class="atlas-header__brand" href="https://aiatlasindia.com/"> <svg aria-hidden="true" width="34" height="34" viewBox="0 0 32 32"><g fill="none" stroke="#0F1B2D" stroke-width="2"><rect x="1.5" y="1.5" width="29" height="29"/><path d="M11 2C7 10 7 22 11 30"/><path d="M21 2c4 8 4 20 0 28"/><path d="M2 16h28"/><circle cx="19.5" cy="10.5" r="3.2" fill="#C9361A" stroke="none"/></g></svg> <span class="atlas-header__name">AI Atlas India</span> </a> <div class="atlas-header__section"><span>INDIC</span></div> </div> <nav class="atlas-header__nav" aria-label="Main"> <a href="/about.html">About</a><a href="https://aiatlasindia.com/#sections">Sections</a><a href="https://aiatlasindia.com/providers/">Providers</a><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a> <a class="atlas-header__contact" href="https://aiatlasindia.com/contact/">Contact</a> </nav> <details class="atlas-header__menu"> <summary aria-label="Menu"> <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0F1B2D" stroke-width="2"><path d="M3 5h14M3 10h14M3 15h14"></path></svg> </summary> <nav aria-label="Main menu"> <a href="/about.html">About</a><a href="https://aiatlasindia.com/#sections">Sections</a><a href="https://aiatlasindia.com/providers/">Providers</a><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a> <a href="https://aiatlasindia.com/contact/">Contact</a> </nav> </details> </div> </header>

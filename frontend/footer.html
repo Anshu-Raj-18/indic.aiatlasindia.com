@@ -1,0 +1,97 @@
+<!-- AI Atlas India footer. Generated from the live site at build time. Use it unchanged. -->
+<!-- Needs tokens.css: <link rel="stylesheet" href="https://aiatlasindia.com/kit/tokens.css"> -->
+<style>
+/* Shared footer. Needs tokens.css. Shipped inside /kit/footer.html. */
+.atlas-footer {
+  font-family: var(--atlas-font-body);
+  color: var(--atlas-on-ink);
+  background: var(--atlas-ink);
+  font-size: 14px;
+  line-height: 22px;
+  --atlas-focus: var(--atlas-signal);
+}
+.atlas-footer a {
+  color: var(--atlas-paper);
+  text-decoration: underline;
+  text-decoration-color: var(--atlas-route);
+  text-underline-offset: 3px;
+}
+.atlas-footer a:hover { color: var(--atlas-signal); }
+.atlas-footer__inner {
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 48px var(--atlas-gutter) 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.atlas-footer__cols { display: flex; flex-wrap: wrap; gap: 40px; }
+.atlas-footer__about { flex: 3 1 340px; display: flex; flex-direction: column; gap: 16px; }
+.atlas-footer__brand { display: flex; align-items: center; gap: 12px; }
+.atlas-footer__brand svg { flex: none; }
+.atlas-footer__name {
+  font-family: var(--atlas-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--atlas-paper);
+}
+.atlas-footer__ownership {
+  border: 1.5px solid var(--atlas-signal);
+  padding: 14px 16px;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--atlas-paper);
+}
+.atlas-footer__ownership p { margin: 0; }
+.atlas-footer__label {
+  margin: 0;
+  font-family: var(--atlas-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--atlas-on-ink-muted);
+}
+.atlas-footer__label--signal { color: var(--atlas-signal); }
+.atlas-footer__col { flex: 1 1 150px; display: flex; flex-direction: column; gap: 6px; }
+.atlas-footer__col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-footer__col--sections ul { display: block; }
+.atlas-footer__col--sections li { display: inline; line-height: 28px; }
+.atlas-footer__col--sections li:nth-child(odd)::after { content: ' · '; }
+.atlas-footer__col--sections li:nth-child(even)::after { content: '\A'; white-space: pre; }
+.atlas-footer__col a { display: inline-block; padding-block: 11px; margin-block: -11px; }
+.atlas-footer__built {
+  margin: 0;
+  color: var(--atlas-paper);
+  font-weight: 600;
+}
+.atlas-footer__base {
+  border-top: 1px solid var(--atlas-muted);
+  padding-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
+  font-family: var(--atlas-font-mono);
+  font-size: 12px;
+  color: var(--atlas-on-ink-muted);
+}
+.atlas-footer__base p { margin: 0; }
+@media (max-width: 767px) {
+  .atlas-footer__inner { padding-top: 40px; }
+  .atlas-footer__col { flex-basis: 100%; }
+  .atlas-footer__col a { padding-block: 11px; margin-block: -8px; }
+  .atlas-footer__col ul { gap: 10px; }
+}
+</style>
+<footer class="atlas-footer"> <div class="atlas-footer__inner"> <div class="atlas-footer__cols"> <div class="atlas-footer__about"> <div class="atlas-footer__brand"> <svg aria-hidden="true" width="30" height="30" viewBox="0 0 32 32"><g fill="none" stroke="#FFFFFF" stroke-width="2"><rect x="1.5" y="1.5" width="29" height="29"/><path d="M11 2C7 10 7 22 11 30"/><path d="M21 2c4 8 4 20 0 28"/><path d="M2 16h28"/><circle cx="19.5" cy="10.5" r="3.2" fill="#F4C430" stroke="none"/></g></svg> <span class="atlas-footer__name">AI Atlas India</span> </div> <div class="atlas-footer__ownership"> <p class="atlas-footer__label atlas-footer__label--signal">Ownership</p> <p><strong>AI Atlas India is owned by Vyohm AI Private Limited, which also sells AI products. We cover every provider, Vyohm included, by the same rules.</strong></p> </div>  </div> <nav class="atlas-footer__col atlas-footer__col--sections" aria-label="Sections"> <h2 class="atlas-footer__label">Sections</h2> <ul> <li><span>01 WhatsApp</span></li><li><span>02 CRM</span></li><li><span>03 ERP</span></li><li><span>04 Voice</span></li><li><span>05 Indic</span></li><li><span>06 GPU</span></li><li><span>07 Sellers</span></li><li><span>08 Factory</span></li> </ul> </nav> <nav class="atlas-footer__col" aria-label="The guide"> <h2 class="atlas-footer__label">The guide</h2> <ul> <li><a href="https://aiatlasindia.com/providers/">Provider index</a></li><li><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a></li><li><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a></li><li><a href="https://aiatlasindia.com/reviewers/">Reviewers</a></li> </ul> </nav> <nav class="atlas-footer__col" aria-label="The site"> <h2 class="atlas-footer__label">The site</h2> <ul> <li><a href="/about.html">About this section</a></li><li><a href="https://aiatlasindia.com/disclosures/">Ownership and disclosures</a></li><li><a href="https://aiatlasindia.com/contact/">Contact</a></li><li><a href="https://aiatlasindia.com/privacy/">Privacy</a></li><li><a href="https://aiatlasindia.com/kit/">Section kit</a></li> </ul> </nav> </div> <div class="atlas-footer__base"> <p>© 2026 Vyohm AI Private Limited · Built by Anshu Raj</p> <p>Every fact sourced and dated. Tell us if something is wrong.</p> </div> </div> </footer>

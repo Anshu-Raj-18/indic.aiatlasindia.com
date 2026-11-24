@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en" data-section="indic">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bhashini (NLTM): 8-Criteria Evaluation — AI Atlas India</title>
+  <meta name="description" content="National Language Translation Mission by MeitY, Government of India">
+  <link rel="canonical" href="https://indic.aiatlasindia.com/providers/bhashini.html">
+  
+  <!-- AI Atlas India Section Kit Design Tokens -->
+  <link rel="stylesheet" href="/tokens.css">
+  
+  <!-- Typography: Bricolage Grotesque, IBM Plex Sans, IBM Plex Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Section Kit Core Application Styles */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--atlas-paper);
+      color: var(--atlas-ink);
+      font-family: var(--atlas-font-body);
+      font-size: 16px;
+      line-height: 1.625;
+      -webkit-font-smoothing: antialiased;
+    }
+    a {
+      color: var(--atlas-ink);
+      text-decoration: none !important;
+    }
+    a:hover {
+      color: var(--atlas-route) !important;
+      text-decoration: none !important;
+    }
+    
+    /* Route Red underline strictly for footer links and inline text citations */
+    .atlas-footer a,
+    footer a,
+    .atlas-citation a,
+    .atlas-prose a,
+    .atlas-article-body p a {
+      text-decoration: underline !important;
+      text-decoration-color: var(--atlas-route) !important;
+      text-underline-offset: 3px !important;
+    }
+    .atlas-footer a:hover,
+    footer a:hover,
+    .atlas-citation a:hover,
+    .atlas-prose a:hover,
+    .atlas-article-body p a:hover {
+      color: var(--atlas-route) !important;
+      text-decoration: underline !important;
+      text-decoration-color: var(--atlas-route) !important;
+    }
+
+    /* Ensure card titles, buttons, headings and read answer links never have red underlines */
+    .atlas-card a,
+    .qa-card a,
+    .atlas-card h3 a,
+    .qa-card h3 a,
+    .atlas-button,
+    .atlas-header a,
+    .atlas-h1 a,
+    .atlas-h2 a,
+    .atlas-h3 a,
+    .qa-read-link,
+    a.qa-read-link {
+      text-decoration: none !important;
+      border-bottom: none !important;
+    }
+    .atlas-card a:hover,
+    .qa-card a:hover,
+    .atlas-card h3 a:hover,
+    .qa-read-link:hover,
+    a.qa-read-link:hover {
+      color: var(--atlas-route) !important;
+      text-decoration: none !important;
+      border-bottom: none !important;
+    }
+    
+    .atlas-container {
+      max-width: var(--atlas-content);
+      margin: 0 auto;
+      padding: 0 var(--atlas-gutter);
+    }
+    
+    .atlas-band {
+      padding: 48px 0;
+      border-bottom: var(--atlas-band-rule);
+    }
+    .atlas-band--sea {
+      background-color: var(--atlas-sea);
+      background-image: 
+        linear-gradient(to right, var(--atlas-grid) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--atlas-grid) 1px, transparent 1px);
+      background-size: var(--atlas-grid-size) var(--atlas-grid-size);
+    }
+    
+    /* Typography Rules */
+    .atlas-display {
+      font-family: var(--atlas-font-display);
+      font-size: 2.75rem;
+      line-height: 1.1;
+      font-weight: 700;
+      margin: 0 0 16px 0;
+      letter-spacing: -0.02em;
+    }
+    @media (min-width: 768px) {
+      .atlas-display { font-size: 3.75rem; }
+    }
+    .atlas-h2 {
+      font-family: var(--atlas-font-display);
+      font-size: 2rem;
+      line-height: 1.2;
+      font-weight: 700;
+      margin: 0 0 20px 0;
+    }
+    .atlas-h3 {
+      font-family: var(--atlas-font-display);
+      font-size: 1.35rem;
+      line-height: 1.3;
+      font-weight: 700;
+      margin: 0 0 12px 0;
+    }
+    .atlas-label {
+      font-family: var(--atlas-font-mono);
+      font-size: 0.75rem;
+      line-height: 1.5;
+      text-transform: uppercase;
+      letter-spacing: var(--atlas-label-tracking);
+      color: var(--atlas-muted);
+    }
+    .atlas-label--indic { color: var(--atlas-indic); font-weight: 600; }
+    
+    /* Status Badges */
+    .atlas-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      border: 1.5px solid var(--atlas-ink);
+      border-radius: var(--atlas-radius);
+    }
+    .atlas-badge--live {
+      background: var(--atlas-ink);
+      color: var(--atlas-paper);
+    }
+    .atlas-badge--signal {
+      background: var(--atlas-signal);
+      color: var(--atlas-ink);
+    }
+    .atlas-badge--indic {
+      background: var(--atlas-indic);
+      color: var(--atlas-paper);
+      border-color: var(--atlas-indic);
+    }
+    
+    /* Fact Marks */
+    .atlas-fact {
+      font-family: var(--atlas-font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--atlas-wash);
+      border: 1px solid var(--atlas-rule);
+      margin: 2px 0;
+    }
+    .atlas-fact--verified { color: var(--atlas-ink); }
+    .atlas-fact--unsourced { color: var(--atlas-muted); border-style: dashed; }
+    
+    /* Byline Box */
+    .atlas-byline-box {
+      border: var(--atlas-border);
+      background: var(--atlas-wash);
+      padding: 16px 20px;
+      margin: 24px 0;
+      font-size: 14px;
+    }
+    .atlas-selection-chip {
+      display: inline-block;
+      border: 1px solid var(--atlas-rule);
+      background: var(--atlas-wash);
+      padding: 4px 8px;
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      margin-top: 8px;
+      color: var(--atlas-muted);
+    }
+    
+    /* Cards and Grids */
+    .atlas-grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+      margin-top: 24px;
+    }
+    .atlas-card {
+      background: var(--atlas-paper);
+      border: var(--atlas-border);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .atlas-card:hover {
+      outline: 2px solid var(--atlas-indic);
+    }
+    
+    /* Tables */
+    .atlas-table-wrapper {
+      overflow-x: auto;
+      margin: 24px 0;
+      border: var(--atlas-border);
+    }
+    .atlas-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+      background: var(--atlas-paper);
+    }
+    .atlas-table th {
+      background: var(--atlas-ink);
+      color: var(--atlas-paper);
+      padding: 12px 16px;
+      font-family: var(--atlas-font-mono);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .atlas-table td {
+      padding: 14px 16px;
+      border-bottom: var(--atlas-row-rule);
+      vertical-align: top;
+    }
+    .atlas-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    /* Code Blocks */
+    .atlas-code-block {
+      background: var(--atlas-ink);
+      color: var(--atlas-on-ink);
+      padding: 20px;
+      border: var(--atlas-border);
+      font-family: var(--atlas-font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 20px 0;
+      position: relative;
+    }
+    .atlas-code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--atlas-ink-soft);
+      padding: 8px 16px;
+      margin: -20px -20px 16px -20px;
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--atlas-on-ink-muted);
+      border-bottom: 1px solid var(--atlas-ink-line);
+    }
+    
+    /* Buttons & Search Controls */
+    .atlas-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: var(--atlas-tap);
+      padding: 0 20px;
+      font-family: var(--atlas-font-body);
+      font-size: 15px;
+      font-weight: 600;
+      border: var(--atlas-border);
+      border-radius: var(--atlas-radius);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .atlas-button--signal {
+      background: var(--atlas-signal);
+      color: var(--atlas-ink);
+    }
+    .atlas-button--signal:hover {
+      background: #e2b322;
+    }
+    .atlas-button--secondary {
+      background: var(--atlas-paper);
+      color: var(--atlas-ink);
+    }
+    .atlas-button--secondary:hover {
+      background: var(--atlas-wash);
+    }
+    
+    .atlas-search-input {
+      width: 100%;
+      height: var(--atlas-tap);
+      padding: 0 16px;
+      font-family: var(--atlas-font-body);
+      font-size: 16px;
+      border: var(--atlas-border);
+      border-radius: var(--atlas-radius);
+      background: var(--atlas-paper);
+      color: var(--atlas-ink);
+      box-sizing: border-box;
+    }
+    .atlas-search-input:focus {
+      outline: 2px solid var(--atlas-indic);
+    }
+  </style>
+  
+  
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-WK0D46CCQZ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-WK0D46CCQZ');
+  </script>
+
+  
+  
+</head>
+<body>
+
+<!-- AI Atlas India header. Generated from the live site at build time. Use it unchanged. -->
+<!-- Needs tokens.css: <link rel="stylesheet" href="https://aiatlasindia.com/kit/tokens.css"> -->
+<style>
+/* Shared header. Needs tokens.css. Shipped inside /kit/header.html. */
+.atlas-header {
+  font-family: var(--atlas-font-body);
+  color: var(--atlas-ink);
+  background: var(--atlas-paper);
+  border-bottom: 2px solid var(--atlas-ink);
+}
+.atlas-header a { text-decoration: none; }
+.atlas-header__strip {
+  background: var(--atlas-ink);
+  color: var(--atlas-on-ink);
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  --atlas-focus: var(--atlas-signal);
+}
+.atlas-header__strip svg { flex: none; }
+.atlas-header__strip a {
+  color: var(--atlas-paper);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--atlas-route);
+  text-underline-offset: 3px;
+  padding-block: 12px;
+  margin-block: -12px;
+}
+.atlas-header__strip a:hover { color: var(--atlas-signal); }
+.atlas-header__bar {
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 14px var(--atlas-gutter);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-sizing: border-box;
+  position: relative;
+}
+.atlas-header__lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.atlas-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--atlas-ink);
+  min-height: 44px;
+}
+.atlas-header__brand:hover { color: var(--atlas-ink); }
+.atlas-header__brand svg { flex: none; }
+.atlas-header__name {
+  font-family: var(--atlas-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.atlas-header__section {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--atlas-paper);
+}
+.atlas-header__section span {
+  font-family: var(--atlas-font-mono);
+  font-size: 13px;
+  line-height: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  background: var(--atlas-section);
+  color: var(--atlas-paper);
+  white-space: nowrap;
+}
+.atlas-header__section:hover { color: var(--atlas-paper); }
+.atlas-header__nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.atlas-header__nav a {
+  color: var(--atlas-ink);
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.atlas-header__nav a:hover { color: var(--atlas-route); }
+.atlas-header__nav a.atlas-header__contact {
+  border: 1.5px solid var(--atlas-ink);
+  padding: 0 16px;
+}
+.atlas-header__menu { display: none; }
+.atlas-header__menu summary {
+  width: 44px;
+  height: 44px;
+  border: 1.5px solid var(--atlas-ink);
+  background: var(--atlas-paper);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  list-style: none;
+}
+.atlas-header__menu summary::-webkit-details-marker { display: none; }
+.atlas-header__menu nav {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  background: var(--atlas-paper);
+  border-top: 2px solid var(--atlas-ink);
+  border-bottom: 2px solid var(--atlas-ink);
+  display: flex;
+  flex-direction: column;
+  padding: 4px var(--atlas-gutter) 12px;
+}
+.atlas-header__menu nav a {
+  color: var(--atlas-ink);
+  font-size: 17px;
+  font-weight: 500;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--atlas-rule);
+}
+.atlas-header__menu nav a:last-child { border-bottom: 0; }
+
+@media (max-width: 919px) {
+  .atlas-header__nav { display: none; }
+  .atlas-header__menu { display: block; }
+}
+@media (max-width: 767px) {
+  .atlas-header__strip { padding-inline: 16px; }
+}
+@media (max-width: 399px) {
+  .atlas-header__name { font-size: 20px; }
+  .atlas-header__brand { gap: 10px; }
+  .atlas-header__section span { font-size: 11px; padding: 3px 6px; }
+}
+</style>
+<header class="atlas-header"> <div class="atlas-header__strip"> <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10"><path d="M5 0 L10 5 L5 10 L0 5 Z" fill="#F4C430"></path></svg> <span>Owned and run by Vyohm AI Private Limited.</span> <a href="https://aiatlasindia.com/disclosures/">Ownership and disclosures</a> </div> <div class="atlas-header__bar"> <div class="atlas-header__lockup"> <a class="atlas-header__brand" href="https://aiatlasindia.com/"> <svg aria-hidden="true" width="34" height="34" viewBox="0 0 32 32"><g fill="none" stroke="#0F1B2D" stroke-width="2"><rect x="1.5" y="1.5" width="29" height="29"/><path d="M11 2C7 10 7 22 11 30"/><path d="M21 2c4 8 4 20 0 28"/><path d="M2 16h28"/><circle cx="19.5" cy="10.5" r="3.2" fill="#C9361A" stroke="none"/></g></svg> <span class="atlas-header__name">AI Atlas India</span> </a> <div class="atlas-header__section"><span>INDIC</span></div> </div> <nav class="atlas-header__nav" aria-label="Main"> <a href="/about.html">About</a><a href="https://aiatlasindia.com/#sections">Sections</a><a href="https://aiatlasindia.com/providers/">Providers</a><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a> <a class="atlas-header__contact" href="https://aiatlasindia.com/contact/">Contact</a> </nav> <details class="atlas-header__menu"> <summary aria-label="Menu"> <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="#0F1B2D" stroke-width="2"><path d="M3 5h14M3 10h14M3 15h14"></path></svg> </summary> <nav aria-label="Main menu"> <a href="/about.html">About</a><a href="https://aiatlasindia.com/#sections">Sections</a><a href="https://aiatlasindia.com/providers/">Providers</a><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a> <a href="https://aiatlasindia.com/contact/">Contact</a> </nav> </details> </div> </header>
+
+
+<main id="content">
+  <div class="atlas-band atlas-band--sea">
+    <div class="atlas-container">
+      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+        <span class="atlas-badge atlas-badge--indic">PLATE 05 · PROVIDER</span>
+        <span class="atlas-badge atlas-badge--live">LIVE · OPEN</span>
+      </div>
+      <h1 class="atlas-display">Bhashini (NLTM)</h1>
+      <p style="font-size: 1.25rem; color: var(--atlas-muted); margin: 0 0 16px 0; max-width: 800px;">
+        National Language Translation Mission by MeitY, Government of India
+      </p>
+      <a href="https://bhashini.gov.in/" target="_blank" rel="noopener" class="atlas-button atlas-button--signal" style="display: inline-flex;">
+        Visit Official Website ↗
+      </a>
+    </div>
+  </div>
+
+  <div class="atlas-band">
+    <div class="atlas-container">
+      <h2 class="atlas-h2">Verified Sourced Fact Registry</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px;">
+        
+        <div style="padding: 12px 16px; border: var(--atlas-border); background: var(--atlas-wash);">
+          <div class="atlas-label">Pricing</div>
+          <div style="font-family: var(--atlas-font-mono); font-weight: 600; font-size: 14px; margin-top: 4px;">● ₹0.00 (Public DPI / Free for Startups)</div>
+        </div>
+
+        <div style="padding: 12px 16px; border: var(--atlas-border); background: var(--atlas-wash);">
+          <div class="atlas-label">Languages Count</div>
+          <div style="font-family: var(--atlas-font-mono); font-weight: 600; font-size: 14px; margin-top: 4px;">● All 22 Scheduled Indian Languages</div>
+        </div>
+
+        <div style="padding: 12px 16px; border: var(--atlas-border); background: var(--atlas-wash);">
+          <div class="atlas-label">Data Residency</div>
+          <div style="font-family: var(--atlas-font-mono); font-weight: 600; font-size: 14px; margin-top: 4px;">● NIC &amp; CDAC Sovereign Cloud (India)</div>
+        </div>
+
+        <div style="padding: 12px 16px; border: var(--atlas-border); background: var(--atlas-wash);">
+          <div class="atlas-label">Entity Vetting</div>
+          <div style="font-family: var(--atlas-font-mono); font-weight: 600; font-size: 14px; margin-top: 4px;">● Mandatory DPIIT / PAN verification</div>
+        </div>
+
+      </div>
+
+      <div class="atlas-byline-box">
+        <p style="margin: 0; font-weight: 600;">
+          Reviewed and verified by Moksh Desai, Developer, Indian-Language Speech-to-Speech Translation Systems · Checked 23 November 2026
+        </p>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: var(--atlas-muted);">
+          Conducted under AI Atlas India's uniform 8-Criteria Evaluation Standard. No sponsored placements or affiliate relationships.
+        </p>
+      </div>
+
+      <h2 class="atlas-h2" style="margin-top: 40px;">The 8 Standard Evaluation Criteria</h2>
+      <div style="border-top: var(--atlas-border); margin-top: 16px;">
+        
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">01</span>
+          <h3 class="atlas-h3" style="margin: 0;">What it does, and for whom</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>What it does, and for whom:</strong> National sovereign AI infrastructure developed under the Digital India Bhashini Division (MeitY). Provides unified APIs for ASR, NMT, TTS, and OCR across all official scheduled languages. Geared toward central and state government portals, educational institutions, MSMEs, and civic technology startups.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">02</span>
+          <h3 class="atlas-h3" style="margin: 0;">Price in India (INR / GST / Commitments)</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Price in India:</strong> ● ₹0.00 / Free tier access for registered Indian startups, researchers, and government departments via the Universal Language Contribution API (ULCA) platform. Commercial enterprise SLAs under pilot review · https://bhashini.gov.in/ · checked 23 November 2026.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">03</span>
+          <h3 class="atlas-h3" style="margin: 0;">Indian language support</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Indian language support:</strong> ● 22 official scheduled languages of India (Assamese, Bengali, Bodo, Dogri, Gujarati, Hindi, Kannada, Kashmiri, Konkani, Maithili, Malayalam, Manipuri, Marathi, Nepali, Odia, Punjabi, Sanskrit, Santali, Sindhi, Tamil, Telugu, Urdu) + English.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">04</span>
+          <h3 class="atlas-h3" style="margin: 0;">Data location and privacy</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Data location and privacy:</strong> ● 100% sovereign government cloud hosting on National Informatics Centre (NIC) and CDAC data centers located in New Delhi, Pune, and Bengaluru. Strict adherence to Indian public digital public goods guidelines.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">05</span>
+          <h3 class="atlas-h3" style="margin: 0;">Fit with tools you already use</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Fit with tools you already use:</strong> REST API (ULCA specification), Swagger documentation, and integrations with UMANG, DigiLocker, and Aadhaar-enabled public services.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">06</span>
+          <h3 class="atlas-h3" style="margin: 0;">Setup and support in India</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Setup and support in India:</strong> Entity registration required on the Bhashini portal (startup DPIIT recognition or corporate PAN verification). Onboarding takes 3 to 7 business days for API key grant.
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">07</span>
+          <h3 class="atlas-h3" style="margin: 0;">Contract and exit terms</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Contract and exit:</strong> Free public digital public infrastructure. No commercial contract lock-in. Developers can switch or self-host upstream open models created by consortium partners (IIT Madras, IIT Bombay).
+        </div>
+      </div>
+
+      <div style="padding: 24px 0; border-bottom: var(--atlas-row-rule);">
+        <div style="display: flex; gap: 12px; align-items: baseline; margin-bottom: 8px;">
+          <span style="font-family: var(--atlas-font-mono); font-size: 16px; font-weight: 700; color: var(--atlas-route);">08</span>
+          <h3 class="atlas-h3" style="margin: 0;">Evidence in practice</h3>
+        </div>
+        <div style="font-size: 15px; line-height: 1.7; color: var(--atlas-ink); max-width: 880px;">
+          <strong>Evidence in practice:</strong> Powering voice-assisted UPI payments, Supreme Court translation initiatives (SUVAS), and agricultural voice advisories. Field tests show wide language breadth, though latency can fluctuate under high national traffic loads.
+        </div>
+      </div>
+
+      </div>
+
+      <h3 class="atlas-h3" style="margin-top: 40px;">Tier 1 Sourced Documentation</h3>
+      <ul style="padding-left: 20px; font-family: var(--atlas-font-mono); font-size: 13px;">
+        <li><a href="https://bhashini.gov.in/" target="_blank" rel="noopener">https://bhashini.gov.in/</a></li>
+<li><a href="https://bhashini.gov.in/ulca" target="_blank" rel="noopener">https://bhashini.gov.in/ulca</a></li>
+<li><a href="https://bhashini.gov.in/privacy-policy" target="_blank" rel="noopener">https://bhashini.gov.in/privacy-policy</a></li>
+<li><a href="https://www.meity.gov.in/digital-india-bhashini" target="_blank" rel="noopener">https://www.meity.gov.in/digital-india-bhashini</a></li>
+
+      </ul>
+
+      <div style="margin-top: 48px; padding-top: 24px; border-top: var(--atlas-row-rule); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <a href="/" class="atlas-button atlas-button--secondary">← Return to Indic Hub</a>
+        <a href="https://aiatlasindia.com/how-we-evaluate/" class="atlas-button atlas-button--secondary">Hub Evaluation Method →</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- AI Atlas India footer. Generated from the live site at build time. Use it unchanged. -->
+<!-- Needs tokens.css: <link rel="stylesheet" href="https://aiatlasindia.com/kit/tokens.css"> -->
+<style>
+/* Shared footer. Needs tokens.css. Shipped inside /kit/footer.html. */
+.atlas-footer {
+  font-family: var(--atlas-font-body);
+  color: var(--atlas-on-ink);
+  background: var(--atlas-ink);
+  font-size: 14px;
+  line-height: 22px;
+  --atlas-focus: var(--atlas-signal);
+}
+.atlas-footer a {
+  color: var(--atlas-paper);
+  text-decoration: underline;
+  text-decoration-color: var(--atlas-route);
+  text-underline-offset: 3px;
+}
+.atlas-footer a:hover { color: var(--atlas-signal); }
+.atlas-footer__inner {
+  max-width: 1184px;
+  margin: 0 auto;
+  padding: 48px var(--atlas-gutter) 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.atlas-footer__cols { display: flex; flex-wrap: wrap; gap: 40px; }
+.atlas-footer__about { flex: 3 1 340px; display: flex; flex-direction: column; gap: 16px; }
+.atlas-footer__brand { display: flex; align-items: center; gap: 12px; }
+.atlas-footer__brand svg { flex: none; }
+.atlas-footer__name {
+  font-family: var(--atlas-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--atlas-paper);
+}
+.atlas-footer__ownership {
+  border: 1.5px solid var(--atlas-signal);
+  padding: 14px 16px;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--atlas-paper);
+}
+.atlas-footer__ownership p { margin: 0; }
+.atlas-footer__label {
+  margin: 0;
+  font-family: var(--atlas-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--atlas-on-ink-muted);
+}
+.atlas-footer__label--signal { color: var(--atlas-signal); }
+.atlas-footer__col { flex: 1 1 150px; display: flex; flex-direction: column; gap: 6px; }
+.atlas-footer__col ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.atlas-footer__col--sections ul { display: block; }
+.atlas-footer__col--sections li { display: inline; line-height: 28px; }
+.atlas-footer__col--sections li:nth-child(odd)::after { content: ' · '; }
+.atlas-footer__col--sections li:nth-child(even)::after { content: '\A'; white-space: pre; }
+.atlas-footer__col a { display: inline-block; padding-block: 11px; margin-block: -11px; }
+.atlas-footer__built {
+  margin: 0;
+  color: var(--atlas-paper);
+  font-weight: 600;
+}
+.atlas-footer__base {
+  border-top: 1px solid var(--atlas-muted);
+  padding-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  justify-content: space-between;
+  font-family: var(--atlas-font-mono);
+  font-size: 12px;
+  color: var(--atlas-on-ink-muted);
+}
+.atlas-footer__base p { margin: 0; }
+@media (max-width: 767px) {
+  .atlas-footer__inner { padding-top: 40px; }
+  .atlas-footer__col { flex-basis: 100%; }
+  .atlas-footer__col a { padding-block: 11px; margin-block: -8px; }
+  .atlas-footer__col ul { gap: 10px; }
+}
+</style>
+<footer class="atlas-footer"> <div class="atlas-footer__inner"> <div class="atlas-footer__cols"> <div class="atlas-footer__about"> <div class="atlas-footer__brand"> <svg aria-hidden="true" width="30" height="30" viewBox="0 0 32 32"><g fill="none" stroke="#FFFFFF" stroke-width="2"><rect x="1.5" y="1.5" width="29" height="29"/><path d="M11 2C7 10 7 22 11 30"/><path d="M21 2c4 8 4 20 0 28"/><path d="M2 16h28"/><circle cx="19.5" cy="10.5" r="3.2" fill="#F4C430" stroke="none"/></g></svg> <span class="atlas-footer__name">AI Atlas India</span> </div> <div class="atlas-footer__ownership"> <p class="atlas-footer__label atlas-footer__label--signal">Ownership</p> <p><strong>AI Atlas India is owned by Vyohm AI Private Limited, which also sells AI products. We cover every provider, Vyohm included, by the same rules.</strong></p> </div>  </div> <nav class="atlas-footer__col atlas-footer__col--sections" aria-label="Sections"> <h2 class="atlas-footer__label">Sections</h2> <ul> <li><span>01 WhatsApp</span></li><li><span>02 CRM</span></li><li><span>03 ERP</span></li><li><span>04 Voice</span></li><li><span>05 Indic</span></li><li><span>06 GPU</span></li><li><span>07 Sellers</span></li><li><span>08 Factory</span></li> </ul> </nav> <nav class="atlas-footer__col" aria-label="The guide"> <h2 class="atlas-footer__label">The guide</h2> <ul> <li><a href="https://aiatlasindia.com/providers/">Provider index</a></li><li><a href="https://aiatlasindia.com/how-we-evaluate/">How we evaluate</a></li><li><a href="https://aiatlasindia.com/editorial-policy/">Editorial policy</a></li><li><a href="https://aiatlasindia.com/reviewers/">Reviewers</a></li> </ul> </nav> <nav class="atlas-footer__col" aria-label="The site"> <h2 class="atlas-footer__label">The site</h2> <ul> <li><a href="/about.html">About this section</a></li><li><a href="https://aiatlasindia.com/disclosures/">Ownership and disclosures</a></li><li><a href="https://aiatlasindia.com/contact/">Contact</a></li><li><a href="https://aiatlasindia.com/privacy/">Privacy</a></li><li><a href="https://aiatlasindia.com/kit/">Section kit</a></li> </ul> </nav> </div> <div class="atlas-footer__base"> <p>© 2026 Vyohm AI Private Limited · Built by Anshu Raj</p> <p>Every fact sourced and dated. Tell us if something is wrong.</p> </div> </div> </footer>
+
+</body>
+</html>

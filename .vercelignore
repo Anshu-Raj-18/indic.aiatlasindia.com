@@ -1,0 +1,34 @@
+# Vercel Deployment Ignore File
+# Strictly prevents private backend code, database files, and secrets from being exposed publicly
+
+# Layer 1 Private Python Automation Pipeline
+engine/
+tests/
+scripts/
+
+# Architecture & Rule Reference Repositories
+references/
+rules/
+docs/
+
+# SQLite Databases & Secrets
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.local
+.env.*
+!.env.example
+credentials.json
+token.json
+
+# Python environments and compilation caches
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.pytest_cache/

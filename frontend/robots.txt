@@ -1,0 +1,22 @@
+# AI Atlas India — Plate 05: Indic Language AI (indic.aiatlasindia.com)
+# Robots.txt configuration allowing search engines and verified AI crawlers.
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://indic.aiatlasindia.com/sitemap.xml
