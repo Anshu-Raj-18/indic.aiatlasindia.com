@@ -33,7 +33,7 @@ from engine.config import (
     CANONICAL_HOST, BLUESKY_DRY_RUN, PLATE_ID,
     MAX_PUBLISHED_ANSWERS, EXACT_FOOTER_OWNERSHIP_LINE,
     CANDIDATE_NAME, CANDIDATE_BRANCH, CANDIDATE_COLLEGE,
-    DEVELOPER_NAME
+    DEVELOPER_NAME, REVIEWER_NAME
 )
 from engine.database import (
     init_db, get_db_connection, insert_question, get_all_questions,
@@ -71,7 +71,8 @@ def test_config_and_identities():
     assert GA_MEASUREMENT_ID == "G-WK0D46CCQZ"
     assert MAX_PUBLISHED_ANSWERS == 20
     assert CANDIDATE_NAME == "Anshu Raj"
-    assert DEVELOPER_NAME == "Moksh Desai"
+    assert DEVELOPER_NAME == "Anshu Raj"
+    assert REVIEWER_NAME == "Moksh Desai"
     assert "Vyohm AI Private Limited" in EXACT_FOOTER_OWNERSHIP_LINE
     assert isinstance(BLUESKY_DRY_RUN, bool)
 
@@ -187,6 +188,24 @@ def test_disqualification_guardrail_no_self_review():
 # TEST 5: EXACT FOOTER OWNERSHIP LINE & ABOUT PAGE
 # ==============================================================================
 def test_exact_footer_ownership_line_and_about_page():
+    # Ensure at least one answer is approved by Moksh Desai (Strict Human Gate)
+    approve_answer(
+        slug="sarvam-vs-bhashini-speech-to-text-cost-accuracy",
+        expert_final_json={
+            "question": "Sarvam AI vs Bhashini: Speech-to-Text Pricing, Latency & Accuracy Compared",
+            "summary": "Verified benchmark comparison.",
+            "comparison_table": [{"provider": "Sarvam AI", "price_inr": "₹0.40/min"}],
+            "runnable_python_code": "import requests\nprint('verified')",
+            "technical_breakdown": ["Sarvam Saaras ASR excels on 8kHz audio."],
+            "sources": ["https://docs.sarvam.ai/"]
+        },
+        reviewer_name="Moksh Desai",
+        reviewer_role="Developer, Indian-Language Speech-to-Speech Translation Systems",
+        reviewer_org="Independent Indic AI Systems",
+        reviewed_at="23 November 2026",
+        reviewer_declaration="Confirmed independent expert review by Moksh Desai."
+    )
+
     # Run export
     stats = run_export()
     assert stats["answers_exported"] >= 1
@@ -326,3 +345,108 @@ def test_vercel_configuration():
         assert "*.db" in v_ignore
         assert "credentials.json" in v_ignore
         assert "token.json" in v_ignore
+
+
+# ==============================================================================
+# TEST 11: UNIFIED PIPELINE ORCHESTRATOR
+# ==============================================================================
+def test_unified_pipeline_orchestrator():
+    orchestrator_path = BASE_DIR / "engine" / "run_pipeline.py"
+    assert orchestrator_path.exists()
+
+    orchestrator_mod = importlib.import_module("engine.run_pipeline")
+    assert hasattr(orchestrator_mod, "run_stage_1")
+    assert hasattr(orchestrator_mod, "run_stage_2")
+    assert hasattr(orchestrator_mod, "run_stage_3")
+    assert hasattr(orchestrator_mod, "run_stage_4")
+    assert hasattr(orchestrator_mod, "run_stage_5")
+    assert hasattr(orchestrator_mod, "run_stage_6")
+
+
+# ==============================================================================
+# TEST 12: PURGE OLD & STALE REVIEWS (/api/reviews/clear-old)
+# ==============================================================================
+def test_clear_old_reviews_endpoint():
+    from fastapi.testclient import TestClient
+    from engine.main import app
+
+    client = TestClient(app)
+
+    # Insert a temporary unapproved answer record
+    test_slug = f"test-stale-draft-{uuid.uuid4().hex[:6]}"
+    qid = insert_question(
+        source="test",
+        source_id=f"test_{uuid.uuid4().hex[:6]}",
+        raw_text="How to test clear old reviews?",
+        clean_question="How to test clear old reviews?",
+        query_keyword="test",
+        hash_key=f"hash_{uuid.uuid4().hex[:8]}"
+    )
+    aid = insert_answer(
+        slug=test_slug,
+        title="Test Stale Draft Title",
+        meta_description="Test meta description for stale draft",
+        category="Speech & Voice",
+        ai_draft_json={"question": "How to test clear old reviews?", "summary": "Stale summary"},
+        question_id=qid,
+        status="PENDING_REVIEW"
+    )
+
+    # Verify it exists in DB
+    ans = get_answer_by_slug(test_slug)
+    assert ans is not None
+    assert ans["status"] == "PENDING_REVIEW"
+
+    # Call /api/reviews/clear-old
+    res = client.post("/api/reviews/clear-old")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert data["deleted_count"] >= 1
+
+    # Verify stale draft is permanently purged
+    ans_after = get_answer_by_slug(test_slug)
+    assert ans_after is None
+
+    # Verify orphaned html file does not exist in frontend/answers/
+    orphan_file = FRONTEND_DIR / "answers" / f"{test_slug}.html"
+    assert not orphan_file.exists()
+
+
+# ==============================================================================
+# TEST 13: LOCAL-ONLY APPROVAL GATE & GITHUB/VERCEL PUBLISH ENDPOINT
+# ==============================================================================
+def test_local_only_approval_and_publish_endpoint():
+    from fastapi.testclient import TestClient
+    from engine.main import app
+
+    client = TestClient(app)
+
+    # Verify frontend/vercel.json configuration
+    frontend_vercel_json = FRONTEND_DIR / "vercel.json"
+    assert frontend_vercel_json.exists()
+    with open(frontend_vercel_json, "r", encoding="utf-8") as f:
+        v_data = json.load(f)
+        assert v_data.get("cleanUrls") is True
+        assert v_data.get("trailingSlash") is False
+
+    # Verify publish endpoint returns valid response without crashing
+    res = client.post("/api/publish")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] in ("published", "no_changes")
+    assert "approved_count" in data
+
+
+# ==============================================================================
+# TEST 14: CLOUDFLARE QUICK TUNNEL HELPER
+# ==============================================================================
+def test_cloudflare_tunnel_helper():
+    tunnel_path = BASE_DIR / "engine" / "tunnel.py"
+    assert tunnel_path.exists()
+
+    tunnel_mod = importlib.import_module("engine.tunnel")
+    assert hasattr(tunnel_mod, "run_tunnel")
+    assert hasattr(tunnel_mod, "start_tunnel_background")
+    assert hasattr(tunnel_mod, "find_or_download_cloudflared")
+

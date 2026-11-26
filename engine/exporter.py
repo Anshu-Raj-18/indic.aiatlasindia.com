@@ -36,7 +36,8 @@ from engine.config import (
     POSTHOG_PROJECT_KEY, POSTHOG_HOST
 )
 from engine.database import (
-    get_db_connection, get_all_providers, get_answers_by_status
+    get_db_connection, get_all_providers, get_answers_by_status,
+    get_approved_answers_with_reasons
 )
 
 
@@ -104,6 +105,7 @@ def build_head(title: str, description: str, canonical_url: str, json_ld: str = 
   
   <!-- AI Atlas India Section Kit Design Tokens -->
   <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/static/tokens.css">
   
   <!-- Typography: Bricolage Grotesque, IBM Plex Sans, IBM Plex Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -922,8 +924,8 @@ def export_hub_page(answers: List[Dict[str, Any]], providers: List[Dict[str, Any
             <p style="font-size: 14px; color: var(--atlas-muted); margin: 0 0 12px 0;">
               {html.escape(a_desc)}
             </p>
-            <div style="font-size: 12px; line-height: 1.45; color: var(--atlas-muted); margin-top: 10px; border-left: 2px solid var(--atlas-indic); padding-left: 8px;">
-              {html.escape(sel_reason)}
+            <div style="font-size: 11.5px; line-height: 1.45; color: var(--atlas-muted); margin-top: 10px; border-left: 2px solid var(--atlas-indic); padding-left: 8px; font-family: var(--atlas-font-mono);">
+              <strong style="color: var(--atlas-ink);">WHY PICKED:</strong> {html.escape(sel_reason)}
             </div>
           </div>
           <div style="padding-top: 16px; border-top: var(--atlas-row-rule); margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
@@ -934,6 +936,9 @@ def export_hub_page(answers: List[Dict[str, Any]], providers: List[Dict[str, Any
           </div>
         </article>
 """
+
+    if not answers_cards:
+        answers_cards = '<div style="padding: 48px 0; text-align: center; border: var(--atlas-border); background: var(--atlas-wash); margin-top: 24px; grid-column: 1 / -1;"><p style="font-family: var(--atlas-font-mono); margin: 0; color: var(--atlas-muted);">No answers have been approved by the independent expert yet. Check back soon.</p></div>'
 
     # Provider Directory Cards HTML
     provider_cards = ""
@@ -1186,13 +1191,10 @@ def run_export() -> Dict[str, Any]:
     print("[Exporter] Starting static compilation of frontend/...")
     
     # DISQUALIFICATION PREVENTION: Only export APPROVED answers with verified reviewer_name
-    answers = get_answers_by_status("APPROVED")
-    verified_answers = [a for a in answers if a.get("reviewer_name") and a.get("reviewer_name") != CANDIDATE_NAME]
+    verified_answers = get_approved_answers_with_reasons(limit=MAX_PUBLISHED_ANSWERS)
 
     if not verified_answers:
-        # Fallback to pending for local testing/preview
-        print("[Exporter] Notice: No APPROVED answers found. Including PENDING_REVIEW for local generation.")
-        verified_answers = get_answers_by_status("PENDING_REVIEW")
+        print("[Exporter] Notice: No APPROVED answers found in database. 0 answers will be exported (Strict Human Gate enforced).")
 
     # Hard cap of 20 answers
     if len(verified_answers) > MAX_PUBLISHED_ANSWERS:
@@ -1210,22 +1212,34 @@ def run_export() -> Dict[str, Any]:
     # 1. Export About Page
     about_path = export_about_page(exp_name, exp_role, exp_org)
 
-    # 2. Export Answers
+    # 2. Clean orphaned or unapproved answer HTML files (Strict Human Gate)
+    answers_dir = FRONTEND_DIR / "answers"
+    answers_dir.mkdir(parents=True, exist_ok=True)
+    valid_filenames = {f"{a['slug']}.html" for a in verified_answers}
+    for file_path in answers_dir.glob("*.html"):
+        if file_path.name not in valid_filenames:
+            try:
+                file_path.unlink()
+                print(f"[Exporter] Removed unapproved/orphaned answer HTML: {file_path.name}")
+            except Exception as e:
+                print(f"[Exporter] Failed to remove {file_path.name}: {e}")
+
+    # 3. Export Verified Answers
     exported_answers = []
     for a in verified_answers:
         p = export_answer_page(a)
         exported_answers.append(p)
 
-    # 3. Export Providers
+    # 4. Export Providers
     exported_providers = []
     for prov in providers:
         p = export_provider_page(prov)
         exported_providers.append(p)
 
-    # 4. Export Hub
+    # 5. Export Hub
     hub_path = export_hub_page(verified_answers, providers)
 
-    # 5. Export Sitemap and Robots
+    # 6. Export Sitemap and Robots
     export_sitemap_and_robots(verified_answers, providers)
 
     stats = {

@@ -29,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from engine.config import (
     GMAIL_CREDENTIALS_PATH, GMAIL_TOKEN_PATH, EXPERT_EMAIL,
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_APP_PASSWORD,
-    DEVELOPER_NAME, CANONICAL_HOST, SECTION_NAME, PLATE_ID
+    DEVELOPER_NAME, CANONICAL_HOST, SECTION_NAME, PLATE_ID,
+    REVIEWER_NAME, REVIEWER_ROLE, REVIEWER_ORG
 )
 from engine.database import (
     init_db, get_db_connection, get_answers_by_status, get_answer_by_slug,
@@ -200,8 +201,8 @@ def dispatch_pending_drafts() -> Dict[str, Any]:
         slug = ans["slug"]
         title = ans["title"]
         token = ans.get("review_token", "direct")
-        review_url = f"{CANONICAL_HOST}/review?token={token}&slug={slug}"
-        local_review_url = f"http://127.0.0.1:8000/review?token={token}&slug={slug}"
+        review_url = f"{CANONICAL_HOST}/review/{token}"
+        local_review_url = f"http://127.0.0.1:8000/review/{token}"
 
         try:
             ai_data = json.loads(ans.get("ai_draft_json") or "{}")
@@ -316,6 +317,12 @@ def check_email_replies() -> Dict[str, Any]:
             msg = service.users().messages().get(userId="me", id=msg_ref["id"], format="full").execute()
             headers = msg.get("payload", {}).get("headers", [])
             subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "")
+            sender = next((h["value"] for h in headers if h["name"].lower() == "from"), "")
+
+            # Verify sender matches EXPERT_EMAIL
+            if EXPERT_EMAIL.lower() not in sender.lower() and "moksh1471@gmail.com" not in sender.lower():
+                print(f"[Email:Poll] Ignored reply from non-expert sender: {sender}")
+                continue
 
             # Extract draft ID from subject: [AI-Atlas-Review #<id>]
             m = re.search(r"\[AI-Atlas-Review #(\d+)\]", subject)
@@ -337,8 +344,22 @@ def check_email_replies() -> Dict[str, Any]:
                 if data_str:
                     body_text = base64.urlsafe_b64decode(data_str.encode()).decode("utf-8", errors="ignore")
 
-            body_clean = body_text.strip()
-            process_expert_reply_text(draft_id, body_clean, reviewer_name="Independent Expert Reviewer", reviewer_role="Senior NLP & Indic Speech Specialist", reviewer_org="Independent Technical Review Board")
+            # Clean reply text: strip quote lines ('>') and email chain headers ('On ... wrote:')
+            cleaned_lines = []
+            for line in body_text.splitlines():
+                line_strip = line.strip()
+                if line_strip.startswith(">") or (line_strip.lower().startswith("on ") and "wrote:" in line_strip.lower()):
+                    break
+                cleaned_lines.append(line)
+            body_clean = "\n".join(cleaned_lines).strip()
+
+            process_expert_reply_text(
+                draft_id,
+                body_clean,
+                reviewer_name=REVIEWER_NAME,
+                reviewer_role=REVIEWER_ROLE,
+                reviewer_org=REVIEWER_ORG
+            )
             stats["replies_found"] += 1
 
     except Exception as e:
@@ -348,9 +369,9 @@ def check_email_replies() -> Dict[str, Any]:
 
 
 def process_expert_reply_text(draft_id: int, reply_text: str,
-                              reviewer_name: str = "Independent Expert Reviewer",
-                              reviewer_role: str = "Senior NLP & Indic Speech Specialist",
-                              reviewer_org: str = "Independent Technical Review Board") -> bool:
+                              reviewer_name: str = REVIEWER_NAME,
+                              reviewer_role: str = REVIEWER_ROLE,
+                              reviewer_org: str = REVIEWER_ORG) -> bool:
     """Parse reply text and apply sign-off / rejection to SQLite."""
     conn = get_db_connection()
     cur = conn.cursor()

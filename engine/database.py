@@ -16,7 +16,7 @@ from typing import List, Dict, Any, Optional
 # Ensure project root in sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from engine.config import DB_PATH, MAX_PUBLISHED_ANSWERS
+from engine.config import DB_PATH, MAX_PUBLISHED_ANSWERS, CANDIDATE_NAME
 
 
 def get_db_connection() -> sqlite3.Connection:
@@ -219,31 +219,16 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
-    # Self-healing baseline: auto-seed if answers table is completely empty on fresh clone
+    # Self-healing baseline: auto-seed drafts as PENDING_REVIEW if answers table is completely empty on fresh clone
     cur.execute("SELECT COUNT(*) FROM answers")
     if cur.fetchone()[0] == 0:
         try:
             import importlib
             draft_mod = importlib.import_module("engine.2_draft")
             draft_mod.run_drafting()
-            cur.execute("""
-                UPDATE answers
-                SET status = 'APPROVED',
-                    reviewer_name = 'Moksh Desai',
-                    reviewer_role = 'Developer, Indian-Language Speech-to-Speech Translation Systems',
-                    reviewer_org = 'Independent Indic AI Systems',
-                    reviewed_at = '23 November 2026',
-                    reviewer_declaration = 'Confirmed independent expert review by Moksh Desai. Written consent received.'
-                WHERE reviewer_name IS NULL
-            """)
-            cur.execute("""
-                UPDATE providers
-                SET reviewer_name = 'Moksh Desai',
-                    reviewer_role = 'Developer, Indian-Language Speech-to-Speech Translation Systems',
-                    reviewed_at = '23 November 2026'
-                WHERE reviewer_name IS NULL
-            """)
-        except Exception as e:
+            # Strictly DO NOT auto-approve: fresh drafts must remain in PENDING_REVIEW
+            # until explicitly verified by the independent expert through the review portal or email reply.
+        except Exception:
             pass
 
     conn.commit()
@@ -358,6 +343,60 @@ def get_answers_by_status(status: Optional[str] = None) -> List[Dict[str, Any]]:
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows
+
+
+def get_approved_answers_with_reasons(limit: int = 20) -> List[Dict[str, Any]]:
+    """
+    Retrieve strictly APPROVED answers with non-empty reviewer_name != CANDIDATE_NAME,
+    joined with questions table to obtain selection_reason and source context.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT a.*, q.selection_reason, q.source as question_source, q.clean_question
+        FROM answers a
+        LEFT JOIN questions q ON a.question_id = q.id
+        WHERE UPPER(a.status) = 'APPROVED'
+          AND a.reviewer_name IS NOT NULL
+          AND TRIM(a.reviewer_name) != ''
+          AND a.reviewer_name != ?
+        ORDER BY a.id ASC
+        LIMIT ?
+    """, (CANDIDATE_NAME, limit))
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def clear_unapproved_answers() -> int:
+    """
+    Purge all unapproved, pending, or rejected review records from answers table.
+    Preserves strictly records where UPPER(status) == 'APPROVED'.
+    Resets linked unapproved questions back to 'DISCOVERED' if they have no approved answer.
+    Returns the count of purged answer records.
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, question_id, slug FROM answers WHERE UPPER(status) != 'APPROVED'")
+    stale_rows = cur.fetchall()
+    deleted_count = len(stale_rows)
+
+    if deleted_count > 0:
+        question_ids = [r["question_id"] for r in stale_rows if r["question_id"]]
+        cur.execute("DELETE FROM answers WHERE UPPER(status) != 'APPROVED'")
+        for qid in set(question_ids):
+            cur.execute("""
+                UPDATE questions
+                SET status = 'DISCOVERED'
+                WHERE id = ? AND id NOT IN (
+                    SELECT question_id FROM answers
+                    WHERE UPPER(status) = 'APPROVED' AND question_id IS NOT NULL
+                )
+            """, (qid,))
+        conn.commit()
+
+    conn.close()
+    return deleted_count
 
 
 def get_answer_by_slug(slug: str) -> Optional[Dict[str, Any]]:

@@ -90,12 +90,12 @@ GA_MEASUREMENT_ID = get_env_var("GA_MEASUREMENT_ID", "G-WK0D46CCQZ")
 
 # Review Admin & Dispatch
 ADMIN_SECRET_TOKEN = get_env_var("ADMIN_SECRET_TOKEN", "indic-atlas-expert-review-2026")
-EXPERT_EMAIL = get_env_var("EXPERT_EMAIL", "jagatsumi@gmail.com")
+EXPERT_EMAIL = get_env_var("EXPERT_EMAIL", "moksh1471@gmail.com")
 REVIEWER_NAME = "Moksh Desai"
 REVIEWER_ROLE = "Developer, Indian-Language Speech-to-Speech Translation Systems"
 REVIEWER_ORG = "Independent Speech-to-Speech Systems"
-DEVELOPER_NAME = "Moksh Desai"  # System Developer / Dispatcher
-CANDIDATE_NAME = "Anshu Raj"    # Assigned Section Author (rules.md)
+DEVELOPER_NAME = "Anshu Raj"      # Candidate Author & System Developer (rules.md)
+CANDIDATE_NAME = "Anshu Raj"      # Assigned Section Author (rules.md)
 CANDIDATE_COLLEGE = "Heritage Institute of Technology, Kolkata"
 CANDIDATE_BRANCH = "B.Tech ECE"
 

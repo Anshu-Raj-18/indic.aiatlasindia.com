@@ -65,13 +65,34 @@ Read the full expert-reviewed answer:
 #AIAtlasIndia #IndicAI #SarvamAI #Bhashini #Krutrim #OpenSourceAI"""
 
 
+MAX_BLUESKY_POSTS_PER_DAY = 3
+
+
 def schedule_approved_answers() -> int:
-    """Queue newly approved answers into social_posts with scheduled timestamps."""
+    """Queue newly approved answers into social_posts with scheduled timestamps (rate-limited to 3/day)."""
     init_db()
     approved_answers = get_answers_by_status("APPROVED")
     scheduled_count = 0
 
+    # Rate limiting: maximum 3 posts per 24 hours
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT COUNT(*) as cnt FROM social_posts
+        WHERE created_at >= datetime('now', '-1 day')
+    """)
+    recent_cnt = cur.fetchone()["cnt"]
+    conn.close()
+
+    if recent_cnt >= MAX_BLUESKY_POSTS_PER_DAY:
+        print(f"[Social] Daily rate limit reached: {recent_cnt} posts recorded in past 24h (cap: {MAX_BLUESKY_POSTS_PER_DAY}).")
+        return 0
+
+    slots_available = MAX_BLUESKY_POSTS_PER_DAY - recent_cnt
+
     for idx, ans in enumerate(approved_answers):
+        if scheduled_count >= slots_available:
+            break
         slug = ans["slug"]
         url = f"{CANONICAL_HOST}/answers/{slug}.html"
         title = ans["title"]
@@ -91,7 +112,7 @@ def schedule_approved_answers() -> int:
             continue
 
         post_text = craft_social_post(title, url, category)
-        # Schedule post (e.g., immediate or staged by 2 hours)
+        # Schedule post (e.g., immediate or staged by 30 mins)
         sched_time = (datetime.now(timezone.utc) + timedelta(minutes=idx * 30)).isoformat()
         record_social_post(url=url, content=post_text, status="SCHEDULED", scheduled_at=sched_time)
         scheduled_count += 1
@@ -105,11 +126,13 @@ def run_scheduled_posts() -> Dict[str, Any]:
     init_db()
     conn = get_db_connection()
     cur = conn.cursor()
+    now_iso = datetime.now(timezone.utc).isoformat()
     cur.execute("""
         SELECT * FROM social_posts
         WHERE status IN ('SCHEDULED', 'QUEUED')
+          AND (scheduled_at IS NULL OR scheduled_at <= ?)
         ORDER BY id ASC
-    """)
+    """, (now_iso,))
     due_posts = [dict(r) for r in cur.fetchall()]
     conn.close()
 

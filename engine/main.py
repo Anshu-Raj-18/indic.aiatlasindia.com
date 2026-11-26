@@ -29,6 +29,7 @@ import sys
 import json
 import argparse
 import html
+import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -37,7 +38,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi import FastAPI, Request, Form, HTTPException, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -50,7 +51,8 @@ from engine.config import (
 from engine.database import (
     init_db, get_db_connection, get_all_questions, get_answers_by_status,
     get_answer_by_slug, get_answer_by_token, approve_answer, reject_answer,
-    get_all_providers, get_all_social_posts, purge_all_commenters
+    get_all_providers, get_all_social_posts, purge_all_commenters,
+    clear_unapproved_answers
 )
 from engine.exporter import run_export
 import importlib
@@ -73,6 +75,15 @@ app = FastAPI(
 # Mount frontend directory for static assets (tokens.css, logo.svg, etc.)
 if FRONTEND_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+
+
+@app.get("/tokens.css")
+def get_tokens_css():
+    """Direct alias for tokens.css so root stylesheet links resolve perfectly under local server and Vercel."""
+    tokens_path = FRONTEND_DIR / "tokens.css"
+    if tokens_path.exists():
+        return FileResponse(str(tokens_path), media_type="text/css")
+    return Response(status_code=404)
 
 
 def mask_sensitive(text: str) -> str:
@@ -159,8 +170,12 @@ def index():
 # 1. HUMAN EXPERT REVIEW PORTAL (/review & /review/{token})
 # ==============================================================================
 @app.get("/review", response_class=HTMLResponse)
-def review_portal_home(slug: Optional[str] = None):
-    return render_review_interface(slug=slug, token=None)
+def review_portal_home(slug: Optional[str] = None, token: Optional[str] = None):
+    if token and not slug:
+        answer = get_answer_by_token(token)
+        if answer:
+            slug = answer["slug"]
+    return render_review_interface(slug=slug, token=token)
 
 
 @app.get("/review/{token}", response_class=HTMLResponse)
@@ -679,6 +694,26 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
     .btn-reject:hover {{
       background: #FEE2E2;
     }}
+    .btn-clear-old {{
+      background: #FFF1F2;
+      color: #E11D48;
+      border: 1px solid #FDA4AF;
+      padding: 5px 12px;
+      font-family: var(--atlas-font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .btn-clear-old:hover {{
+      background: #FFE4E6;
+      border-color: #F43F5E;
+      color: #BE123C;
+    }}
 
     /* Status Pills */
     .status-pill {{
@@ -736,6 +771,9 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
         </span>
       </div>
       <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+        <button type="button" id="clearOldReviewsBtn" class="btn-clear-old" onclick="clearOldReviews()" title="Purge unapproved and pending review drafts">
+          🗑 Clear Old Reviews
+        </button>
         <span class="status-pill status-pill--{selected_answer['status'].lower() if selected_answer else 'pending'}">
           {selected_answer['status'] if selected_answer else ''}
         </span>
@@ -1313,6 +1351,32 @@ def render_review_interface(slug: Optional[str] = None, token: Optional[str] = N
       }}
     }}
 
+    async function clearOldReviews() {{
+      if (!confirm("Are you sure you want to permanently purge all unapproved/pending review drafts from the database and remove any orphaned HTML files? Approved answers will be strictly preserved.")) {{
+        return;
+      }}
+      const btn = document.getElementById('clearOldReviewsBtn');
+      if (btn) {{
+        btn.disabled = true;
+        btn.innerText = 'Purging...';
+      }}
+      try {{
+        const res = await fetch('/api/reviews/clear-old', {{ method: 'POST' }});
+        if (res.ok) {{
+          const data = await res.json();
+          alert('Successfully cleared ' + data.deleted_count + ' unapproved/stale review drafts. Static site updated.');
+          window.location.href = '/review';
+        }} else {{
+          const err = await res.text();
+          alert('Error purging old reviews: ' + err);
+          if (btn) {{ btn.disabled = false; btn.innerText = '🗑 Clear Old Reviews'; }}
+        }}
+      }} catch(e) {{
+        alert('Network error: ' + e);
+        if (btn) {{ btn.disabled = false; btn.innerText = '🗑 Clear Old Reviews'; }}
+      }}
+    }}
+
     document.addEventListener('DOMContentLoaded', () => {{
       try {{
         if (localStorage.getItem('atlas_review_drawer_collapsed') === 'true') {{
@@ -1433,6 +1497,15 @@ def admin_diffs_view():
 def analytics_dashboard():
     """Level 6 Traffic & Crawler Analytics and Level 7 A/B Experiment Monitor."""
     summary = get_analytics_summary()
+
+    # Query counts for deployment gate
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) as cnt FROM answers WHERE UPPER(status) = 'APPROVED'")
+    approved_answers_cnt = cur.fetchone()["cnt"]
+    cur.execute("SELECT COUNT(*) as cnt FROM answers WHERE UPPER(status) != 'APPROVED'")
+    pending_answers_cnt = cur.fetchone()["cnt"]
+    conn.close()
 
     # Recommendations from database
     conn = get_db_connection()
@@ -1570,6 +1643,37 @@ def analytics_dashboard():
       </div>
     </div>
 
+    <!-- Production Deployment Gate: Publish Approved to GitHub -->
+    <div style="border: 2px solid var(--atlas-indic); background: #FFFFFF; padding: 24px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <span class="atlas-label" style="font-weight: 700; color: var(--atlas-indic);">PRODUCTION DEPLOYMENT GATE</span>
+          <h2 style="font-family: var(--atlas-font-display); font-size: 22px; margin: 4px 0 8px 0;">
+            Publish Approved Answers to GitHub / Vercel
+          </h2>
+          <p style="font-size: 14px; line-height: 1.6; color: var(--atlas-muted); margin: 0; max-width: 720px;">
+            Approvals made by the expert remain strictly local until you initiate deployment. When published, the compiler updates static files in <code>frontend/</code>, commits changes (e.g. <em>"Publish {approved_answers_cnt} approved answers to Vercel"</em>), and pushes to <code>origin main</code>.
+          </p>
+          <div style="margin-top: 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <div style="background: var(--atlas-wash); border: 1px solid #CBD5E1; padding: 6px 14px; border-radius: 4px; font-family: var(--atlas-font-mono); font-size: 12px;">
+              <span style="color: var(--atlas-muted);">Approved Ready:</span> <strong style="color: var(--atlas-indic);">{approved_answers_cnt}</strong>
+            </div>
+            <div style="background: var(--atlas-wash); border: 1px solid #CBD5E1; padding: 6px 14px; border-radius: 4px; font-family: var(--atlas-font-mono); font-size: 12px;">
+              <span style="color: var(--atlas-muted);">Pending Review:</span> <strong style="color: var(--atlas-signal);">{pending_answers_cnt}</strong>
+            </div>
+            <div id="publishStatusBanner" style="display: none; font-family: var(--atlas-font-mono); font-size: 12px; padding: 6px 12px; border-radius: 4px;"></div>
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+          <button id="publishBtn" onclick="publishApprovedToGithub()" style="background: var(--atlas-indic); color: #FFFFFF; border: none; padding: 12px 24px; font-family: var(--atlas-font-mono); font-size: 13px; font-weight: 700; cursor: pointer; border-radius: 4px; box-shadow: 0 2px 6px rgba(138, 90, 28, 0.25); display: inline-flex; align-items: center; gap: 8px;">
+            <span id="publishSpinner" style="display: none;">⏳</span>
+            <span>🚀 Publish Approved to GitHub</span>
+          </button>
+          <span style="font-size: 11px; font-family: var(--atlas-font-mono); color: var(--atlas-muted);">Pushes exclusively approved items to branch main</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Bonus Level 7 A/B Experiment Status Card -->
     <div style="border: 1.5px solid var(--atlas-indic); background: var(--atlas-sea); padding: 24px; margin-bottom: 32px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1645,6 +1749,50 @@ def analytics_dashboard():
   </div>
 
   <script>
+    async function publishApprovedToGithub() {{
+      if (!confirm("Are you sure you want to export and push all approved answers to GitHub / Vercel?")) return;
+      const btn = document.getElementById('publishBtn');
+      const spinner = document.getElementById('publishSpinner');
+      const banner = document.getElementById('publishStatusBanner');
+
+      btn.disabled = true;
+      spinner.style.display = 'inline';
+      banner.style.display = 'block';
+      banner.style.background = '#FEF9C3';
+      banner.style.color = '#854D0E';
+      banner.style.border = '1px solid #FDE047';
+      banner.innerText = 'Compiling approved answers and pushing to GitHub...';
+
+      try {{
+        const res = await fetch('/api/publish', {{ method: 'POST' }});
+        const data = await res.json();
+        spinner.style.display = 'none';
+        btn.disabled = false;
+        if (res.ok) {{
+          banner.style.background = '#DCFCE7';
+          banner.style.color = '#166534';
+          banner.style.border = '1px solid #86EFAC';
+          banner.innerText = '✓ ' + (data.message || 'Published successfully!');
+          alert(data.message || 'Published successfully to GitHub!');
+          setTimeout(() => {{ window.location.reload(); }}, 1500);
+        }} else {{
+          banner.style.background = '#FEE2E2';
+          banner.style.color = '#991B1B';
+          banner.style.border = '1px solid #FCA5A5';
+          banner.innerText = 'Error: ' + (data.detail || 'Failed to publish');
+          alert('Error publishing to GitHub: ' + (data.detail || JSON.stringify(data)));
+        }}
+      }} catch (err) {{
+        spinner.style.display = 'none';
+        btn.disabled = false;
+        banner.style.background = '#FEE2E2';
+        banner.style.color = '#991B1B';
+        banner.style.border = '1px solid #FCA5A5';
+        banner.innerText = 'Network error: ' + err;
+        alert('Network error while publishing: ' + err);
+      }}
+    }}
+
     async function approveTopic(topicId) {{
       try {{
         const res = await fetch('/admin/topics/' + topicId + '/approve', {{ method: 'POST' }});
@@ -1943,6 +2091,67 @@ def trigger_export():
     return {"status": "SUCCESS", "stats": stats}
 
 
+@app.post("/api/reviews/clear-old")
+def api_clear_old_reviews():
+    """
+    Purge all unapproved/pending review drafts from SQLite,
+    delete orphaned HTML files from frontend/answers/,
+    and re-run static export so live site strictly reflects valid approved content.
+    """
+    deleted_count = clear_unapproved_answers()
+    export_stats = run_export()
+    return {"status": "ok", "deleted_count": deleted_count, "export_stats": export_stats}
+
+
+@app.post("/api/publish")
+def api_publish_to_github():
+    """
+    Production Deployment Gate:
+    1. Re-run static exporter (exporting only approved answers, removing unapproved .html files)
+    2. Git add -A frontend/
+    3. Check git status --porcelain frontend/
+    4. Commit with 'Publish {count} approved answers to Vercel'
+    5. Push to origin main
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    export_stats = run_export()
+    
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) as cnt FROM answers WHERE UPPER(status) = 'APPROVED'")
+    approved_count = cur.fetchone()["cnt"]
+    conn.close()
+
+    try:
+        subprocess.run(["git", "add", "-A", "frontend/"], cwd=str(repo_root), capture_output=True, text=True, check=True)
+        status_proc = subprocess.run(["git", "status", "--porcelain", "frontend/"], cwd=str(repo_root), capture_output=True, text=True, check=True)
+        if not status_proc.stdout.strip():
+            return {
+                "status": "no_changes",
+                "message": f"Live site is already up to date with all {approved_count} approved answers.",
+                "approved_count": approved_count,
+                "export_stats": export_stats
+            }
+
+        commit_msg = f"Publish {approved_count} approved answers to Vercel"
+        commit_proc = subprocess.run(["git", "commit", "-m", commit_msg], cwd=str(repo_root), capture_output=True, text=True, check=True)
+        push_proc = subprocess.run(["git", "push", "origin", "main"], cwd=str(repo_root), capture_output=True, text=True, check=True)
+
+        return {
+            "status": "published",
+            "message": f"Successfully published {approved_count} approved answers to GitHub/Vercel.",
+            "approved_count": approved_count,
+            "commit_output": commit_proc.stdout.strip(),
+            "push_output": push_proc.stdout.strip(),
+            "export_stats": export_stats
+        }
+    except subprocess.CalledProcessError as e:
+        err_msg = e.stderr.strip() if e.stderr else (e.stdout.strip() if e.stdout else str(e))
+        raise HTTPException(status_code=500, detail=f"Git deployment error: {err_msg}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Publish error: {str(e)}")
+
+
 # ==============================================================================
 # CLI DISPATCHER
 # ==============================================================================
@@ -1951,6 +2160,7 @@ if __name__ == "__main__":
     parser.add_argument("--export", action="store_true", help="Compile static site to frontend/ and exit")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="FastAPI host")
     parser.add_argument("--port", type=int, default=8000, help="FastAPI port")
+    parser.add_argument("--tunnel", action="store_true", help="Launch public Cloudflare Quick Tunnel for remote expert review")
     args = parser.parse_args()
 
     init_db()
@@ -1961,5 +2171,11 @@ if __name__ == "__main__":
         print("[CLI] Export complete.")
     else:
         import uvicorn
+        if args.tunnel:
+            try:
+                from engine.tunnel import start_tunnel_background
+                start_tunnel_background(port=args.port)
+            except Exception as e:
+                print(f"[Tunnel] Failed to start tunnel: {e}")
         print(f"[Server] Starting FastAPI server on http://{args.host}:{args.port}/review")
         uvicorn.run("engine.main:app", host=args.host, port=args.port, reload=False)

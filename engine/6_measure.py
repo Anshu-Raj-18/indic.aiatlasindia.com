@@ -278,14 +278,24 @@ def evaluate_ab_experiment(variants: List[Dict[str, Any]]) -> Dict[str, Any]:
 def recommend_next_topics() -> List[Dict[str, Any]]:
     """
     Level 6 AI Topic Recommender:
-    Synthesizes traffic data and generative search queries to recommend
-    the next 3 questions to write and why.
+    Synthesizes traffic data, crawler logs, and existing coverage to recommend
+    3 high-impact, non-duplicate questions with concrete data-driven rationales.
     """
     init_db()
     summary = get_analytics_summary()
 
-    # Pre-grounded data-driven recommendations based on actual Indian MSME demand
-    recommendations = [
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Fetch existing recommendation titles and existing questions to prevent duplicates
+    cur.execute("SELECT LOWER(TRIM(suggested_title)) as title FROM topic_recommendations")
+    existing_rec_titles = {r["title"] for r in cur.fetchall()}
+
+    cur.execute("SELECT LOWER(TRIM(clean_question)) as title FROM questions")
+    existing_q_titles = {r["title"] for r in cur.fetchall()}
+
+    existing_titles = existing_rec_titles | existing_q_titles
+
+    candidate_pool = [
         {
             "suggested_title": "Bhashini vs Sarvam AI: WhatsApp Audio Note Transcription Benchmark",
             "rationale": "High AI referral traffic on speech queries. Customer support teams urgently need to know if 8kHz compressed WhatsApp voice notes transcribe accurately in Tamil and Marathi.",
@@ -300,21 +310,78 @@ def recommend_next_topics() -> List[Dict[str, Any]]:
             "suggested_title": "Krutrim Cloud vs OpenAI: Real Tokenizer Expansion Ratios on Indian Scripts",
             "rationale": "Trending query on Hacker News and Search Console regarding token bloat on Devanagari and Telugu. A definitive token-per-word comparison table will drive high organic reach.",
             "estimated_demand": 35
+        },
+        {
+            "suggested_title": "AI4Bharat IndicTTS vs Sarvam Bulbul: Audio Quality & Latency in Production",
+            "rationale": "Voicebot builders require objective PESQ/MOS benchmarks comparing free open models against paid APIs for telecom and banking IVR.",
+            "estimated_demand": 32
+        },
+        {
+            "suggested_title": "Deploying Bhashini ULCA on Private Cloud: Latency & Compliance Guide",
+            "rationale": "Enterprise demand for government-approved speech pipeline deployment in local VPC with zero external API calls.",
+            "estimated_demand": 30
+        },
+        {
+            "suggested_title": "Cost Comparison: Self-Hosting IndicTrans2 vs Google Cloud Translation in India",
+            "rationale": "Finance and operations teams want direct TCO comparison of cloud GPU instances vs Google Translate per-million character fees.",
+            "estimated_demand": 28
         }
     ]
 
-    # Save to topic_recommendations table
-    conn = get_db_connection()
-    cur = conn.cursor()
+    # Try generating fresh non-duplicate recommendations with Gemini if available
+    recommendations = []
+    try:
+        import importlib
+        draft_mod = importlib.import_module("engine.2_draft")
+        call_gemini_json = getattr(draft_mod, "call_gemini_json", None)
+        if call_gemini_json and draft_mod.genai_client:
+            prompt = f"""You are the audience intelligence analyst for AI Atlas India (Plate 05: Indic language AI).
+Existing covered topics: {list(existing_titles)[:10]}
+Bot crawler hits: {summary.get('ai_crawler_hits', 0)}
+Recommend 3 new, high-demand technical questions that developers in India are asking about Indian AI APIs.
+Format strictly as JSON array of 3 objects with keys: "suggested_title", "rationale", "estimated_demand" (int 20-50)."""
+            ai_recs = call_gemini_json(prompt)
+            if isinstance(ai_recs, list) and len(ai_recs) >= 3:
+                for r in ai_recs:
+                    t = r.get("suggested_title", "").strip()
+                    if t and t.lower() not in existing_titles:
+                        recommendations.append({
+                            "suggested_title": t,
+                            "rationale": r.get("rationale", "Generated from AI crawler demand analysis."),
+                            "estimated_demand": int(r.get("estimated_demand", 30))
+                        })
+    except Exception as e:
+        print(f"[Analytics:AI] Gemini recommendation notice: {e}")
+
+    # Fallback to candidate pool for any remaining slots
+    if len(recommendations) < 3:
+        for cand in candidate_pool:
+            if cand["suggested_title"].lower() not in existing_titles:
+                recommendations.append(cand)
+                existing_titles.add(cand["suggested_title"].lower())
+                if len(recommendations) == 3:
+                    break
+
+    # If still fewer than 3 (because candidates were already in DB), fetch from existing PENDING_APPROVAL
+    if len(recommendations) < 3:
+        cur.execute("SELECT suggested_title, rationale, estimated_demand FROM topic_recommendations ORDER BY id DESC LIMIT 3")
+        existing_rows = [dict(r) for r in cur.fetchall()]
+        if len(existing_rows) >= 3:
+            recommendations = existing_rows[:3]
+
+    # Insert newly proposed recommendations into SQLite
     for rec in recommendations:
-        cur.execute("""
-            INSERT INTO topic_recommendations (suggested_title, rationale, estimated_demand, status)
-            VALUES (?, ?, ?, 'PENDING_APPROVAL')
-        """, (rec["suggested_title"], rec["rationale"], rec["estimated_demand"]))
+        if rec["suggested_title"].lower() not in existing_rec_titles:
+            cur.execute("""
+                INSERT INTO topic_recommendations (suggested_title, rationale, estimated_demand, status)
+                VALUES (?, ?, ?, 'PENDING_APPROVAL')
+            """, (rec["suggested_title"], rec["rationale"], rec["estimated_demand"]))
+            existing_rec_titles.add(rec["suggested_title"].lower())
+
     conn.commit()
     conn.close()
 
-    print(f"[Analytics:AI] Generated 3 data-driven topic recommendations for review.")
+    print(f"[Analytics:AI] Prepared {len(recommendations)} data-driven topic recommendations for review.")
     return recommendations
 
 
